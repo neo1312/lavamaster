@@ -49,6 +49,19 @@ class TieredPricingTests(TestCase):
         self.assertEqual(self.t1.effective_rate('7.50'), Decimal('22.00'))
         self.assertEqual(self.t1.effective_rate('15.00'), Decimal('18.00'))
 
+    def test_below_minimum_resolves_to_first_band(self):
+        resolved = self.t1.resolve_for('0.30')
+        self.assertEqual(resolved.pk, self.t1.pk)
+        self.assertEqual(self.t1.effective_rate('0.30'), Decimal('25.00'))
+
+    def test_above_closed_max_resolves_to_last_band(self):
+        last = ServiceType.objects.create(
+            name='Piezas largas', category=self.cat, unit='kg',
+            min_weight_kg='0.00', max_weight_kg='2.00', rate_per_kg='50.00',
+        )
+        self.assertEqual(last.resolve_for('3.00').pk, last.pk)
+        self.assertEqual(last.effective_rate('3.00'), Decimal('50.00'))
+
     def test_plain_service_has_no_tier(self):
         plain = ServiceType.objects.create(name='Toallas', rate_per_kg='28.00')
         self.assertFalse(plain.is_tier)

@@ -34,29 +34,9 @@
                 </div>
 
                 <label>Servicios / prendas</label>
-                <table class="data" id="lines-table">
-                    <thead><tr><th>Tipo</th><th style="width:100px">Peso / Cant.</th><th style="width:40px"></th></tr></thead>
-                    <tbody>
-                        <tr class="line-row">
-                            <td>
-                                <select name="service_type" class="service-type">
-                                    {% for group in service_groups %}
-                                        <optgroup label="{% if group.emoji %}{{ group.emoji }} {% endif %}{{ group.name }}">
-                                            {% for opt in group.options %}
-                                                <option value="{{ opt.pk }}">{{ opt.label }}</option>
-                                            {% endfor %}
-                                        </optgroup>
-                                    {% endfor %}
-                                </select>
-                                <span class="row-rate hidden"></span>
-                            </td>
-                            <td><input type="text" name="weight" class="line-value" inputmode="decimal" placeholder="0.00 kg"></td>
-                            <td><button type="button" class="btn btn-muted btn-sm remove-line" style="padding:.3rem .6rem">✕</button></td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div id="lines-list"></div>
                 <div style="margin:.6rem 0">
-                    <button type="button" class="btn btn-ghost btn-sm" id="add-line">➕ Agregar línea</button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="add-line-btn">➕ Agregar prenda / servicio</button>
                 </div>
 
                 <div class="row" style="align-items:center;margin-top:.5rem">
@@ -129,6 +109,32 @@
         </div>
     </div>
 </div>
+
+<div class="modal-overlay hidden" id="line-modal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="line-modal-title" style="width:min(460px,94vw)">
+        <div class="modal-head">
+            <h3 id="line-modal-title">➕ Agregar prenda / servicio</h3>
+            <button type="button" class="modal-close" data-modal-close aria-label="Cerrar">✕</button>
+        </div>
+        <label>Servicio</label>
+        <select class="modal-service-type">
+            {% for group in service_groups %}
+                <optgroup label="{% if group.emoji %}{{ group.emoji }} {% endif %}{{ group.name }}">
+                    {% for opt in group.options %}
+                        <option value="{{ opt.pk }}">{{ opt.label }}</option>
+                    {% endfor %}
+                </optgroup>
+            {% endfor %}
+        </select>
+        <label id="line-value-label">Peso (kg)</label>
+        <input type="text" class="modal-line-value" inputmode="decimal" placeholder="Peso (kg)">
+        <div class="range-preview hidden"></div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-muted" data-modal-close>Cancelar</button>
+            <button type="button" class="btn btn-success" id="modal-add-line">Agregar</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -149,44 +155,121 @@
     }
 
     function unitFor(pk) { return units[pk] || 'kg'; }
+    function isTiered(pk) { return Boolean(tiers[pk]); }
 
-    function updateRow(row) {
-        const sel = row.querySelector('.service-type');
-        const val = row.querySelector('.line-value');
-        const badge = row.querySelector('.row-rate');
-        const raw = parseFloat((val.value || '0').replace(',', '.'));
-        const unit = unitFor(sel.value);
-        const isPiece = unit === 'piece';
-        val.placeholder = isPiece ? 'Cantidad' : '0.00 kg';
-        val.dataset.mode = isPiece ? 'piece' : 'kg';
-
-        Array.from(sel.options).forEach(opt => opt.classList.remove('band-active'));
-        if (!raw || raw <= 0) {
-            badge.classList.add('hidden');
-            badge.textContent = '';
-            return { w: 0, m: 0 };
-        }
-        const band = bandFor(sel.value, raw);
-        const rate = band ? parseFloat(band.rate) : parseFloat(rates[sel.value] || 0);
-        if (band) {
-            const opt = Array.from(sel.options).find(o => o.value === String(band.pk));
-            if (opt) opt.classList.add('band-active');
-        }
-        badge.textContent = `✓ $${rate.toFixed(2)}/${isPiece ? 'pieza' : 'kg'}`;
-        badge.classList.remove('hidden');
-        if (isPiece) {
-            const qty = Math.round(raw);
-            return { w: 0, m: qty * rate };
-        }
-        return { w: raw, m: raw * rate };
+    function bandLabel(band) {
+        if (band.min !== null && band.max !== null) return `Rango ${band.min}–${band.max} kg`;
+        if (band.min !== null) return `Rango +${band.min} kg`;
+        if (band.max !== null) return `Rango hasta ${band.max} kg`;
+        return '';
     }
 
-    function recompute() {
+    function optionLabel(pk) {
+        const opt = Array.from(document.querySelector('.modal-service-type').options)
+            .find(o => o.value === String(pk));
+        return opt ? opt.text : '';
+    }
+
+    function lineInfo(pk, raw) {
+        const unit = unitFor(pk);
+        const isPiece = unit === 'piece';
+        const band = bandFor(pk, raw);
+        let rate, appliedPk = null, rangeNote = '';
+        if (band) {
+            rate = parseFloat(band.rate);
+            appliedPk = band.pk;
+            rangeNote = bandLabel(band);
+        } else if (isTiered(pk)) {
+            const fb = tiers[pk][0];
+            rate = parseFloat(fb.rate);
+            appliedPk = fb.pk;
+            rangeNote = 'Peso menor al rango → tarifa base';
+        } else {
+            rate = parseFloat(rates[pk] || 0);
+        }
+        let weight = 0, qty = 0, subtotal = 0, valid = true;
+        if (isPiece) {
+            qty = Math.round(raw);
+            valid = qty === raw && qty >= 1;
+            subtotal = qty * rate;
+        } else {
+            weight = raw;
+            subtotal = raw * rate;
+        }
+        return { pk, unit, isPiece, rate, appliedPk, rangeNote, weight, qty, subtotal, valid };
+    }
+
+    const modalSel = document.querySelector('.modal-service-type');
+    const modalVal = document.querySelector('.modal-line-value');
+    const preview = document.querySelector('.range-preview');
+
+    function updateModalPreview() {
+        const pk = modalSel.value;
+        const isPiece = unitFor(pk) === 'piece';
+        const labelEl = document.getElementById('line-value-label');
+        labelEl.textContent = isPiece ? 'Cantidad' : 'Peso (kg)';
+        modalVal.placeholder = isPiece ? 'Cantidad' : 'Peso (kg)';
+
+        Array.from(modalSel.options).forEach(o => o.classList.remove('band-active'));
+        preview.classList.add('hidden');
+        preview.classList.remove('warn');
+        preview.dataset.valid = '0';
+
+        const raw = parseFloat((modalVal.value || '0').replace(',', '.'));
+        if (!raw || raw <= 0) return;
+
+        const info = lineInfo(pk, raw);
+        if (!info.valid) {
+            preview.classList.remove('hidden');
+            preview.classList.add('warn');
+            preview.textContent = '⚠️ Cantidad inválida (usa un número entero).';
+            return;
+        }
+        if (info.appliedPk) {
+            const opt = Array.from(modalSel.options).find(o => o.value === String(info.appliedPk));
+            if (opt) opt.classList.add('band-active');
+        }
+        const rateTxt = `$${info.rate.toFixed(2)}/${info.isPiece ? 'pieza' : 'kg'}`;
+        let msg;
+        if (info.isPiece) msg = `${info.rangeNote || optionLabel(pk)} · ${info.qty} × ${rateTxt} = $${info.subtotal.toFixed(2)}`;
+        else msg = `${info.rangeNote ? info.rangeNote + ' → ' : ''}${rateTxt} · Subtotal $${info.subtotal.toFixed(2)}`;
+        preview.classList.remove('hidden');
+        if (info.rangeNote.startsWith('Peso menor')) preview.classList.add('warn');
+        preview.textContent = msg;
+        preview.dataset.valid = '1';
+    }
+
+    modalSel.addEventListener('change', updateModalPreview);
+    modalVal.addEventListener('input', updateModalPreview);
+
+    function renderLine(id, info) {
+        const list = document.getElementById('lines-list');
+        const div = document.createElement('div');
+        div.className = 'pos-line';
+        div.dataset.line = id;
+        div.dataset.subtotal = info.subtotal.toFixed(2);
+        div.dataset.weight = info.weight.toFixed(2);
+        const valueTxt = info.isPiece
+            ? `${info.qty} pza`
+            : `${info.weight.toFixed(2)} kg`;
+        div.innerHTML = `
+            <div class="pos-line-info">
+                <strong>${optionLabel(info.pk)}</strong>
+                <span class="muted">${valueTxt}</span>
+            </div>
+            <div class="pos-line-price">
+                <span class="pos-line-rate">✓ $${info.rate.toFixed(2)}/${info.isPiece ? 'pieza' : 'kg'}</span>
+                <span class="money">$${info.subtotal.toFixed(2)}</span>
+            </div>
+            <button type="button" class="btn btn-muted btn-sm remove-added-line" aria-label="Quitar">✕</button>`;
+        list.appendChild(div);
+    }
+
+    function recomputeTotal() {
         let totalWeight = 0, totalAmount = 0;
-        document.querySelectorAll('#lines-table tbody tr.line-row').forEach(row => {
-            const r = updateRow(row);
-            totalWeight += r.w;
-            totalAmount += r.m;
+        document.querySelectorAll('#lines-list .pos-line').forEach(row => {
+            totalWeight += parseFloat(row.dataset.weight || 0);
+            totalAmount += parseFloat(row.dataset.subtotal || 0);
         });
         document.getElementById('total-weight').textContent = totalWeight.toFixed(2) + ' kg';
         document.getElementById('total-amount').textContent = '$' + totalAmount.toFixed(2);
@@ -194,30 +277,42 @@
         if (!pay.dataset.touched) pay.value = totalAmount.toFixed(2);
     }
 
-    const linesTable = document.getElementById('lines-table');
-    linesTable.addEventListener('input', recompute);
-    linesTable.addEventListener('change', recompute);
-    document.getElementById('payment-amount').addEventListener('input', e => { e.target.dataset.touched = '1'; });
+    document.getElementById('add-line-btn').addEventListener('click', () => {
+        modalVal.value = '';
+        updateModalPreview();
+        openModal('#line-modal');
+    });
 
-    function addLine() {
-        const tbody = document.querySelector('#lines-table tbody');
-        const clone = tbody.querySelector('tr.line-row').cloneNode(true);
-        clone.querySelector('.line-value').value = '';
-        tbody.appendChild(clone);
-        recompute();
-    }
-    document.getElementById('add-line').addEventListener('click', addLine);
-    linesTable.addEventListener('click', e => {
-        if (e.target.classList.contains('remove-line')) {
-            const rows = document.querySelectorAll('#lines-table tbody tr.line-row');
-            if (rows.length > 1) {
-                e.target.closest('tr').remove();
-                recompute();
-            } else {
-                e.target.closest('tr').querySelector('.line-value').value = '';
-                recompute();
-            }
+    document.getElementById('modal-add-line').addEventListener('click', () => {
+        if (preview.dataset.valid !== '1') {
+            showToast('Captura un peso o cantidad válidos.', 'warning');
+            return;
         }
+        const pk = modalSel.value;
+        const raw = (modalVal.value || '').trim().replace(',', '.');
+        const info = lineInfo(pk, parseFloat(raw));
+        const id = Date.now() + '-' + Math.floor(Math.random() * 1e6);
+        const form = document.getElementById('order-form');
+        const hi = document.createElement('input');
+        hi.type = 'hidden'; hi.name = 'service_type'; hi.value = pk; hi.dataset.line = id;
+        const hv = document.createElement('input');
+        hv.type = 'hidden'; hv.name = 'weight'; hv.value = raw; hv.dataset.line = id;
+        form.appendChild(hi);
+        form.appendChild(hv);
+        renderLine(id, info);
+        recomputeTotal();
+        closeModal(document.getElementById('line-modal'));
+        modalVal.value = '';
+        updateModalPreview();
+    });
+
+    document.getElementById('lines-list').addEventListener('click', e => {
+        if (!e.target.classList.contains('remove-added-line')) return;
+        const row = e.target.closest('.pos-line');
+        const id = row.dataset.line;
+        document.querySelectorAll(`#order-form input[data-line="${id}"]`).forEach(i => i.remove());
+        row.remove();
+        recomputeTotal();
     });
 
     document.getElementById('new-customer-toggle').addEventListener('change', e => {
@@ -234,6 +329,6 @@
         }
     });
 
-    recompute();
+    updateModalPreview();
 </script>
 {% endblock %}

@@ -72,14 +72,18 @@ class ServiceType(models.Model):
 
         Las tarifas por rango comparten name + category; cada fila es un
         tramo con min/max. Las filas sin rango son servicios simples.
+        Si el peso no cae en ningún tramo (p. ej. debajo del mínimo), se
+        resuelve al rango más cercano para cobrar la porción proporcional.
         """
         weight = Decimal(weight)
         if not self.is_tier:
             return self
-        group = ServiceType.objects.filter(
-            active=True, name=self.name, category_id=self.category_id,
+        bands = list(
+            ServiceType.objects.filter(
+                active=True, name=self.name, category_id=self.category_id,
+            ).order_by('min_weight_kg', 'pk')
         )
-        for candidate in group.order_by('min_weight_kg', 'pk'):
+        for candidate in bands:
             mn = candidate.min_weight_kg
             mx = candidate.max_weight_kg
             if mn is not None and weight < Decimal(mn):
@@ -88,7 +92,13 @@ class ServiceType(models.Model):
                 continue
             if mn is not None or mx is not None:
                 return candidate
+        if not bands:
+            return self
+        if bands[0].min_weight_kg is not None and weight < Decimal(bands[0].min_weight_kg):
+            return bands[0]
+        if bands[-1].max_weight_kg is not None and weight > Decimal(bands[-1].max_weight_kg):
+            return bands[-1]
         return self
 
     def effective_rate(self, weight):
-        return self.resolve_for(weight).rate_per_kg
+        return Decimal(self.resolve_for(weight).rate_per_kg)
