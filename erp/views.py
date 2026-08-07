@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
@@ -153,8 +154,14 @@ def service_types(request):
             messages.success(request, 'Tarifa actualizada.')
         elif action == 'delete':
             st = get_object_or_404(ServiceType, pk=request.POST.get('id'))
-            st.delete()
-            messages.success(request, 'Servicio eliminado.')
+            try:
+                st.delete()
+                messages.success(request, 'Tarifa eliminada.')
+            except ProtectedError:
+                messages.error(
+                    request,
+                    f"No se puede eliminar «{st.name}»: se usa en órdenes. Desactívala en su lugar.",
+                )
         return redirect('erp_service_types')
 
     return render(request, 'erp/service_types.html', {

@@ -3,59 +3,70 @@
 {% block content %}
 <div class="page-head">
     <h1>💲 Tarifas por servicio</h1>
-    <a href="{% url 'dashboard' %}" class="btn btn-ghost">← Dashboard</a>
+    <div class="row" style="margin:0">
+        <button type="button" class="btn btn-accent" data-modal-open="#create-modal">➕ Nueva tarifa</button>
+        <a href="{% url 'dashboard' %}" class="btn btn-ghost">← Dashboard</a>
+    </div>
 </div>
 
-<div class="grid-2">
-    <div>
-        <div class="card">
-            <h2>➕ Nuevo tipo de servicio</h2>
-            <form method="post">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="create">
-                <label>Nombre</label>
-                <input type="text" name="name" required>
-                <div class="row">
-                    <div style="flex:1">
-                        <label>Tarifa por kg ($)</label>
-                        <input type="text" name="rate_per_kg" inputmode="decimal" required>
-                    </div>
-                    <div style="flex:1">
-                        <label>Días estimados</label>
-                        <input type="number" name="estimated_days" value="1" min="1">
-                    </div>
-                </div>
-                <div style="margin-top:1rem">
-                    <button type="submit" class="btn btn-success">Crear servicio 💲</button>
-                </div>
-            </form>
-        </div>
+<div class="card">
+    <div class="table-wrap">
+        <table class="data">
+            <thead>
+                <tr>
+                    <th style="width:38%">Servicio</th>
+                    <th class="right">$/kg</th>
+                    <th>Días</th>
+                    <th>Activo</th>
+                    <th class="right">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for st in service_types %}
+                    <tr>
+                        <td><input type="text" name="name" value="{{ st.name }}" form="sf-{{ st.pk }}"></td>
+                        <td class="right"><input type="text" name="rate_per_kg" value="{{ st.rate_per_kg }}" inputmode="decimal" style="width:90px;text-align:right" form="sf-{{ st.pk }}"></td>
+                        <td><input type="number" name="estimated_days" value="{{ st.estimated_days }}" min="1" style="width:70px" form="sf-{{ st.pk }}"></td>
+                        <td><input type="checkbox" name="active" {% if st.active %}checked{% endif %} style="width:auto" form="sf-{{ st.pk }}"></td>
+                        <td class="right" style="white-space:nowrap">
+                            <button type="submit" class="btn btn-sm btn-primary" form="sf-{{ st.pk }}">Guardar</button>
+                            <button type="submit" class="btn btn-sm btn-danger" form="df-{{ st.pk }}" data-confirm="¿Eliminar «{{ st.name }}»?">🗑️</button>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="5" class="muted">Sin servicios. Crea uno con el botón de arriba.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+</div>
 
-    <div>
-        <div class="card">
-            <h2>📋 Tarifas actuales</h2>
-            <div class="table-wrap">
-                <table class="data">
-                    <thead><tr><th>Servicio</th><th class="right">$/kg</th><th>Días</th><th>Activo</th><th></th></tr></thead>
-                    <tbody>
-                        {% for st in service_types %}
-                            <tr>
-                                <td><input type="text" name="name" value="{{ st.name }}" form="sf-{{ st.pk }}"></td>
-                                <td><input type="text" name="rate_per_kg" value="{{ st.rate_per_kg }}" inputmode="decimal" style="width:80px" form="sf-{{ st.pk }}"></td>
-                                <td><input type="number" name="estimated_days" value="{{ st.estimated_days }}" min="1" style="width:60px" form="sf-{{ st.pk }}"></td>
-                                <td><input type="checkbox" name="active" {% if st.active %}checked{% endif %} style="width:auto" form="sf-{{ st.pk }}"></td>
-                                <td style="white-space:nowrap">
-                                    <button type="submit" class="btn btn-sm btn-primary" form="sf-{{ st.pk }}">Guardar</button>
-                                </td>
-                            </tr>
-                        {% empty %}
-                            <tr><td colspan="5" class="muted">Sin servicios.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+<div class="modal-overlay hidden" id="create-modal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-head">
+            <h3 id="modal-title">➕ Nueva tarifa</h3>
+            <button type="button" class="modal-close" data-modal-close aria-label="Cerrar">✕</button>
         </div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <label>Nombre</label>
+            <input type="text" name="name" required placeholder="Ej. Ropa normal">
+            <div class="row">
+                <div style="flex:1">
+                    <label>Tarifa por kg ($)</label>
+                    <input type="text" name="rate_per_kg" inputmode="decimal" required placeholder="Ej. 25.00">
+                </div>
+                <div style="flex:1">
+                    <label>Días estimados</label>
+                    <input type="number" name="estimated_days" value="1" min="1">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-muted" data-modal-close>Cancelar</button>
+                <button type="submit" class="btn btn-success">Crear tarifa 💲</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -63,6 +74,11 @@
     <form id="sf-{{ st.pk }}" method="post" class="hidden">
         {% csrf_token %}
         <input type="hidden" name="action" value="update">
+        <input type="hidden" name="id" value="{{ st.pk }}">
+    </form>
+    <form id="df-{{ st.pk }}" method="post" class="hidden">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="delete">
         <input type="hidden" name="id" value="{{ st.pk }}">
     </form>
 {% endfor %}
