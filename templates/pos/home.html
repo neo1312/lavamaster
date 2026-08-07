@@ -6,14 +6,13 @@
     <span class="pill small">Pago inicial por defecto: $0 · Efectivo</span>
 </div>
 
-<div class="grid-2">
-    <div>
-        <div class="card">
-            <div class="card-title">
-                <h2>🧺 Nueva orden</h2>
-            </div>
-            <form method="post" id="order-form">
-                {% csrf_token %}
+<div class="pos-wrap">
+    <div class="card">
+        <div class="card-title">
+            <h2>🧺 Nueva orden</h2>
+        </div>
+        <form method="post" id="order-form">
+            {% csrf_token %}
                 <label>Cliente</label>
                 <select name="customer_id" id="customer-select">
                     <option value="">— Cliente existente —</option>
@@ -60,52 +59,6 @@
                     <button type="submit" class="btn btn-success btn-lg btn-block">Registrar orden 🚀</button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <div>
-        <div class="card">
-            <div class="card-title">
-                <h2>📋 Órdenes</h2>
-                <div class="chips" style="margin-top:0">
-                    <a class="chip {% if date_filter == 'today' %}active w-today{% endif %}" href="?status={{ status_filter }}&date=today">📅 Hoy</a>
-                    <a class="chip {% if date_filter == 'all' %}active w-today{% endif %}" href="?status={{ status_filter }}&date=all">🗓️ Todas</a>
-                </div>
-            </div>
-
-            <div class="chips" style="margin-bottom:1rem">
-                {% for value, label, emoji in status_chips %}
-                    <a class="chip {% if status_filter == value %}active{% endif %}"
-                       href="?{% if value %}status={{ value }}&{% endif %}date={{ date_filter }}">{{ emoji }} {{ label }}</a>
-                {% endfor %}
-            </div>
-
-            <div class="table-wrap">
-                <table class="data">
-                    <thead>
-                        <tr>
-                            <th>#</th><th>Cliente</th><th class="right">Kg</th>
-                            <th class="right">Total</th><th class="right">Saldo</th><th>Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for o in orders %}
-                            <tr class="clickable" onclick="location.href='{% url 'pos_order_detail' o.pk %}'">
-                                <td><strong>{{ o.ticket_number }}</strong></td>
-                                <td>{{ o.customer.name }}</td>
-                                <td class="right money">{{ o.total_weight_kg }}</td>
-                                <td class="right money">${{ o.subtotal }}</td>
-                                <td class="right money {% if o.balance_due > 0 %}negative{% else %}positive{% endif %}">
-                                    ${{ o.balance_due }}
-                                </td>
-                                <td><span class="badge st-{{ o.status }}">{{ o.get_status_display }}</span></td>
-                            </tr>
-                        {% empty %}
-                            <tr><td colspan="6" class="muted">Sin órdenes aquí 🫧</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
         </div>
     </div>
 </div>

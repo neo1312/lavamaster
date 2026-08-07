@@ -32,6 +32,13 @@ MODULES = [
         'cls': 'm-pos',
     },
     {
+        'title': 'Órdenes',
+        'emoji': '📋',
+        'sub': 'Seguimiento y filtros',
+        'url': 'pos_orders_list',
+        'cls': 'm-orders',
+    },
+    {
         'title': 'Recepcionistas',
         'emoji': '👥',
         'sub': 'Usuarios del mostrador',

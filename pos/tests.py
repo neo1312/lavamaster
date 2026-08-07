@@ -72,3 +72,32 @@ class PosCreateOrderTests(TestCase):
         for pk, bands in data['tier_map'].items():
             self.assertIn(int(pk), {b['pk'] for b in bands})
             self.assertGreaterEqual(len(bands), 2)
+
+    def test_orders_list_page(self):
+        from orders.models import Order, OrderLine
+        self.client.post('/pos/', {
+            'customer_name': 'Lista Test',
+            'service_type': [str(self.camisa.pk)],
+            'weight': ['2'],
+            'payment_amount': '0.00', 'payment_method': 'cash',
+        })
+        response = self.client.get('/pos/orders/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Órdenes')
+        self.assertContains(response, 'Lista Test')
+        self.assertContains(response, 'Todos')
+        OrderLine.objects.filter(order__customer__name='Lista Test').delete()
+        Order.objects.filter(customer__name='Lista Test').delete()
+
+    def test_orders_list_visible_for_cashier(self):
+        cashier = User.objects.create_user(
+            'caja2', password='pass', role=User.Role.CASHIER
+        )
+        self.client.force_login(cashier)
+        self.assertEqual(self.client.get('/pos/orders/').status_code, 200)
+
+    def test_pos_home_has_no_orders_table(self):
+        response = self.client.get('/pos/')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Órdenes</h2>')
+        self.assertNotContains(response, 'date=today')

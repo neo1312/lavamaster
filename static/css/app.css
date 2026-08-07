@@ -290,6 +290,7 @@ table.data tr.cat-head td {
 .module .m-sub { font-size: .82rem; opacity: .92; }
 .module .m-arrow { font-size: 1.1rem; opacity: .85; }
 .m-pos { background: linear-gradient(135deg, #0ea5e9, #06b6d4); }
+.m-orders { background: linear-gradient(135deg, #0ea5e9, #6366f1); }
 .m-users { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
 .m-pricing { background: linear-gradient(135deg, #f59e0b, #f97316); }
 .m-customers { background: linear-gradient(135deg, #10b981, #22c55e); }
@@ -490,3 +491,6 @@ select.service-type option.band-active {
 .range-row { cursor: default; }
 .range-row.band-active { background: #dcfce7 !important; }
 .range-row.band-active td { color: #14532d; font-weight: 800; }
+
+/* ---------- POS: formulario centrado ---------- */
+.pos-wrap { max-width: 640px; margin: 0 auto; }

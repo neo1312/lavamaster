@@ -98,8 +98,8 @@ class RoleAccessTests(TestCase):
         )
         self.assertEqual(response.status_code, 201)
 
-    def test_pos_list_filters_by_status_and_date(self):
+    def test_orders_list_filters_by_status_and_date(self):
         self.client.force_login(self.cashier)
-        self.assertEqual(self.client.get('/pos/?status=on_wash').status_code, 200)
-        self.assertEqual(self.client.get('/pos/?date=all').status_code, 200)
-        self.assertEqual(self.client.get('/pos/?status=received&date=all').status_code, 200)
+        self.assertEqual(self.client.get('/pos/orders/?status=on_wash').status_code, 200)
+        self.assertEqual(self.client.get('/pos/orders/?date=all').status_code, 200)
+        self.assertEqual(self.client.get('/pos/orders/?status=received&date=all').status_code, 200)

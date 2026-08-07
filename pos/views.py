@@ -187,6 +187,20 @@ def pos_home(request):
         )
         return redirect('pos_order_detail', pk=order.pk)
 
+    options = _build_service_options()
+    return render(request, 'pos/home.html', {
+        'service_groups': options['service_groups'],
+        'rates_json': json.dumps(options['rates']),
+        'units_json': json.dumps(options['units']),
+        'tiers_json': json.dumps(options['tier_map']),
+        'customers': Customer.objects.order_by('name'),
+        'active_page': 'pos',
+    })
+
+
+@login_required
+@require_http_methods(['GET'])
+def orders_list(request):
     valid_statuses = dict(Order.Status.choices)
     status_filter = request.GET.get('status', '')
     if status_filter not in valid_statuses:
@@ -200,18 +214,12 @@ def pos_home(request):
     if date_filter == 'today':
         orders = orders.filter(received_at__date=timezone.localdate())
 
-    options = _build_service_options()
-    return render(request, 'pos/home.html', {
-        'service_groups': options['service_groups'],
-        'rates_json': json.dumps(options['rates']),
-        'units_json': json.dumps(options['units']),
-        'tiers_json': json.dumps(options['tier_map']),
-        'customers': Customer.objects.order_by('name'),
+    return render(request, 'pos/orders_list.html', {
         'orders': orders,
         'status_chips': STATUS_CHIPS,
         'status_filter': status_filter,
         'date_filter': date_filter,
-        'active_page': 'pos',
+        'active_page': 'orders',
     })
 
 
