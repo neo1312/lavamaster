@@ -38,24 +38,17 @@ def _parse_weight(raw):
 
 
 def _service_label(st):
+    """Etiqueta de una opción no agrupada (pieza / kg simple)."""
     unit_txt = 'kg' if st.unit == ServiceType.Unit.KG else 'pieza'
-    rate = st.rate_per_kg
-    if st.is_tier:
-        if st.min_weight_kg is not None and st.max_weight_kg is not None:
-            return f'{st.name} {st.min_weight_kg}–{st.max_weight_kg} kg · ${rate}/{unit_txt}'
-        if st.min_weight_kg is not None:
-            return f'{st.name} +{st.min_weight_kg} kg · ${rate}/{unit_txt}'
-        if st.max_weight_kg is not None:
-            return f'{st.name} hasta {st.max_weight_kg} kg · ${rate}/{unit_txt}'
-    return f'{st.name} · ${rate}/{unit_txt}'
+    return f'{st.name} · ${st.rate_per_kg}/{unit_txt}'
 
 
 def _build_service_options():
     """Estructura del select agrupado por categoría + datos para el JS.
 
-    Cada tarifa activa es una opción propia (los tramos de un rango se listan
-    individualmente con su precio). tier_map asocia cada tramo del grupo a la
-    lista completa de tramos para que el JS resuelva cuál aplica según el peso.
+    Los servicios por rango se agrupan en una sola opción con el nombre
+    (p. ej. 'Lavado general'); la lista de tramos va en tier_map para que
+    el popup muestre la tabla de rangos y resuelva cuál aplica según el peso.
     """
     active = list(
         ServiceType.objects.filter(active=True)
@@ -77,6 +70,7 @@ def _build_service_options():
         members.sort(
             key=lambda m: (m.min_weight_kg is None, m.min_weight_kg or Decimal('0'), m.pk)
         )
+        rep = members[0]
         band_list = [
             {
                 'pk': m.pk,
@@ -86,15 +80,24 @@ def _build_service_options():
             }
             for m in members
         ]
-        for m in members:
-            tier_map[m.pk] = band_list
+        tier_map[rep.pk] = band_list
 
     option_groups = []
+    emitted = set()
     for cat in categories:
-        opts = [
-            {'pk': st.pk, 'label': _service_label(st)}
-            for st in active if st.category_id == cat.pk
-        ]
+        opts = []
+        for st in active:
+            if st.category_id != cat.pk:
+                continue
+            if st.is_tier:
+                key = (cat.pk, st.name)
+                if key in emitted:
+                    continue
+                emitted.add(key)
+                rep = group_rows[key][0]
+                opts.append({'pk': rep.pk, 'label': rep.name})
+            else:
+                opts.append({'pk': st.pk, 'label': _service_label(st)})
         option_groups.append({'emoji': cat.emoji, 'name': cat.name, 'options': opts})
 
     if uncategorized:

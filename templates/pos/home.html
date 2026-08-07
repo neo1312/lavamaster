@@ -128,6 +128,14 @@
         </select>
         <label id="line-value-label">Peso (kg)</label>
         <input type="text" class="modal-line-value" inputmode="decimal" placeholder="Peso (kg)">
+        <div class="range-table-wrap hidden" id="range-table-wrap">
+            <table class="data range-table" id="range-table">
+                <thead>
+                    <tr><th>Rango</th><th class="right">Tarifa</th></tr>
+                </thead>
+                <tbody id="range-rows"></tbody>
+            </table>
+        </div>
         <div class="range-preview hidden"></div>
         <div class="modal-actions">
             <button type="button" class="btn btn-muted" data-modal-close>Cancelar</button>
@@ -158,9 +166,9 @@
     function isTiered(pk) { return Boolean(tiers[pk]); }
 
     function bandLabel(band) {
-        if (band.min !== null && band.max !== null) return `Rango ${band.min}–${band.max} kg`;
-        if (band.min !== null) return `Rango +${band.min} kg`;
-        if (band.max !== null) return `Rango hasta ${band.max} kg`;
+        if (band.min !== null && band.max !== null) return `${band.min}–${band.max} kg`;
+        if (band.min !== null) return `+${band.min} kg`;
+        if (band.max !== null) return `hasta ${band.max} kg`;
         return '';
     }
 
@@ -168,6 +176,38 @@
         const opt = Array.from(document.querySelector('.modal-service-type').options)
             .find(o => o.value === String(pk));
         return opt ? opt.text : '';
+    }
+
+    const rangeTableWrap = document.getElementById('range-table-wrap');
+    const rangeRows = document.getElementById('range-rows');
+
+    function renderRangeTable(pk) {
+        const list = tiers[pk];
+        if (!list) {
+            rangeTableWrap.classList.add('hidden');
+            rangeRows.innerHTML = '';
+            return;
+        }
+        rangeRows.innerHTML = '';
+        list.forEach(b => {
+            const tr = document.createElement('tr');
+            tr.className = 'range-row';
+            tr.dataset.pk = b.pk;
+            const tdRange = document.createElement('td');
+            tdRange.textContent = bandLabel(b);
+            const tdRate = document.createElement('td');
+            tdRate.className = 'right';
+            tdRate.textContent = `$${parseFloat(b.rate).toFixed(2)}/kg`;
+            tr.appendChild(tdRange);
+            tr.appendChild(tdRate);
+            rangeRows.appendChild(tr);
+        });
+        rangeTableWrap.classList.remove('hidden');
+    }
+
+    function highlightRange(appliedPk) {
+        Array.from(rangeRows.querySelectorAll('.range-row')).forEach(r =>
+            r.classList.toggle('band-active', String(r.dataset.pk) === String(appliedPk)));
     }
 
     function lineInfo(pk, raw) {
@@ -183,7 +223,7 @@
             const fb = tiers[pk][0];
             rate = parseFloat(fb.rate);
             appliedPk = fb.pk;
-            rangeNote = 'Peso menor al rango → tarifa base';
+            rangeNote = 'Peso menor al rango';
         } else {
             rate = parseFloat(rates[pk] || 0);
         }
@@ -210,10 +250,12 @@
         labelEl.textContent = isPiece ? 'Cantidad' : 'Peso (kg)';
         modalVal.placeholder = isPiece ? 'Cantidad' : 'Peso (kg)';
 
-        Array.from(modalSel.options).forEach(o => o.classList.remove('band-active'));
         preview.classList.add('hidden');
         preview.classList.remove('warn');
         preview.dataset.valid = '0';
+
+        renderRangeTable(pk);
+        highlightRange(null);
 
         const raw = parseFloat((modalVal.value || '0').replace(',', '.'));
         if (!raw || raw <= 0) return;
@@ -225,16 +267,14 @@
             preview.textContent = '⚠️ Cantidad inválida (usa un número entero).';
             return;
         }
-        if (info.appliedPk) {
-            const opt = Array.from(modalSel.options).find(o => o.value === String(info.appliedPk));
-            if (opt) opt.classList.add('band-active');
-        }
+        highlightRange(info.appliedPk);
         const rateTxt = `$${info.rate.toFixed(2)}/${info.isPiece ? 'pieza' : 'kg'}`;
         let msg;
-        if (info.isPiece) msg = `${info.rangeNote || optionLabel(pk)} · ${info.qty} × ${rateTxt} = $${info.subtotal.toFixed(2)}`;
-        else msg = `${info.rangeNote ? info.rangeNote + ' → ' : ''}${rateTxt} · Subtotal $${info.subtotal.toFixed(2)}`;
+        if (info.isPiece) msg = `${optionLabel(pk)} · ${info.qty} × ${rateTxt} = $${info.subtotal.toFixed(2)}`;
+        else if (info.rangeNote) msg = `${info.rangeNote} → ${rateTxt} · Subtotal $${info.subtotal.toFixed(2)}`;
+        else msg = `${rateTxt} · Subtotal $${info.subtotal.toFixed(2)}`;
         preview.classList.remove('hidden');
-        if (info.rangeNote.startsWith('Peso menor')) preview.classList.add('warn');
+        if (info.rangeNote && info.rangeNote.startsWith('Peso menor')) preview.classList.add('warn');
         preview.textContent = msg;
         preview.dataset.valid = '1';
     }

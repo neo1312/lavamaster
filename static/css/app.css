@@ -482,3 +482,11 @@ select.service-type option.band-active {
 .range-preview.warn {
     color: #78350f; background: #fef3c7; border-color: #fcd34d;
 }
+
+/* ---------- POS: tabla de rangos en popup ---------- */
+.range-table-wrap { margin-top: .7rem; }
+.range-table { width: 100%; font-size: .85rem; }
+.range-table th { font-size: .68rem; }
+.range-row { cursor: default; }
+.range-row.band-active { background: #dcfce7 !important; }
+.range-row.band-active td { color: #14532d; font-weight: 800; }
