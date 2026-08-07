@@ -48,6 +48,7 @@
                                         </optgroup>
                                     {% endfor %}
                                 </select>
+                                <span class="row-rate hidden"></span>
                             </td>
                             <td><input type="text" name="weight" class="line-value" inputmode="decimal" placeholder="0.00 kg"></td>
                             <td><button type="button" class="btn btn-muted btn-sm remove-line" style="padding:.3rem .6rem">✕</button></td>
@@ -147,24 +148,32 @@
         return null;
     }
 
-    function rateFor(pk, weight) {
-        const band = bandFor(pk, weight);
-        if (band) return parseFloat(band.rate);
-        return parseFloat(rates[pk] || 0);
-    }
-
     function unitFor(pk) { return units[pk] || 'kg'; }
 
     function updateRow(row) {
         const sel = row.querySelector('.service-type');
         const val = row.querySelector('.line-value');
+        const badge = row.querySelector('.row-rate');
         const raw = parseFloat((val.value || '0').replace(',', '.'));
         const unit = unitFor(sel.value);
         const isPiece = unit === 'piece';
         val.placeholder = isPiece ? 'Cantidad' : '0.00 kg';
         val.dataset.mode = isPiece ? 'piece' : 'kg';
-        if (!raw || raw <= 0) return { w: 0, m: 0 };
-        const rate = rateFor(sel.value, raw);
+
+        Array.from(sel.options).forEach(opt => opt.classList.remove('band-active'));
+        if (!raw || raw <= 0) {
+            badge.classList.add('hidden');
+            badge.textContent = '';
+            return { w: 0, m: 0 };
+        }
+        const band = bandFor(sel.value, raw);
+        const rate = band ? parseFloat(band.rate) : parseFloat(rates[sel.value] || 0);
+        if (band) {
+            const opt = Array.from(sel.options).find(o => o.value === String(band.pk));
+            if (opt) opt.classList.add('band-active');
+        }
+        badge.textContent = `✓ $${rate.toFixed(2)}/${isPiece ? 'pieza' : 'kg'}`;
+        badge.classList.remove('hidden');
         if (isPiece) {
             const qty = Math.round(raw);
             return { w: 0, m: qty * rate };

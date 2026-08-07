@@ -58,9 +58,17 @@ class PosCreateOrderTests(TestCase):
         })
         self.assertFalse(Order.objects.exists())
 
-    def test_pos_home_renders_grouped_services(self):
+    def test_pos_home_renders_each_tariff(self):
         response = self.client.get('/pos/')
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Lavado general')
-        self.assertContains(response, 'desde $22.00/kg')
-        self.assertContains(response, 'Camisa')
+        self.assertContains(response, 'Lavado general 0.50–5.00 kg · $25.00/kg')
+        self.assertContains(response, 'Lavado general 5.00–10.00 kg · $22.00/kg')
+        self.assertContains(response, 'Camisa · $25.00/pieza')
+        self.assertNotContains(response, 'desde $')
+
+    def test_tier_map_covers_every_band(self):
+        from pos.views import _build_service_options
+        data = _build_service_options()
+        for pk in data['tier_map']:
+            band_pks = {b['pk'] for b in data['tier_map'][pk]}
+            self.assertIn(int(pk), band_pks)

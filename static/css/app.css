@@ -438,3 +438,21 @@ table.data tr.cat-head td {
     body { background: #fff; }
     .container { max-width: none; padding: 0; }
 }
+
+/* ---------- POS: tarifa aplicada ---------- */
+select.service-type option.band-active {
+    background: #dcfce7 !important;
+    color: #14532d !important;
+    font-weight: 700;
+}
+.row-rate {
+    display: inline-block;
+    margin-top: .35rem;
+    padding: .15rem .55rem;
+    font-size: .78rem;
+    font-weight: 800;
+    color: #14532d;
+    background: #dcfce7;
+    border: 1px solid #86efac;
+    border-radius: 999px;
+}

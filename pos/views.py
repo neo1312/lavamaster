@@ -37,8 +37,26 @@ def _parse_weight(raw):
     return value if value > 0 else None
 
 
+def _service_label(st):
+    unit_txt = 'kg' if st.unit == ServiceType.Unit.KG else 'pieza'
+    rate = st.rate_per_kg
+    if st.is_tier:
+        if st.min_weight_kg is not None and st.max_weight_kg is not None:
+            return f'{st.name} {st.min_weight_kg}–{st.max_weight_kg} kg · ${rate}/{unit_txt}'
+        if st.min_weight_kg is not None:
+            return f'{st.name} +{st.min_weight_kg} kg · ${rate}/{unit_txt}'
+        if st.max_weight_kg is not None:
+            return f'{st.name} hasta {st.max_weight_kg} kg · ${rate}/{unit_txt}'
+    return f'{st.name} · ${rate}/{unit_txt}'
+
+
 def _build_service_options():
-    """Estructura del select agrupado por categoría + datos para el JS."""
+    """Estructura del select agrupado por categoría + datos para el JS.
+
+    Cada tarifa activa es una opción propia (los tramos de un rango se listan
+    individualmente con su precio). tier_map asocia cada tramo del grupo a la
+    lista completa de tramos para que el JS resuelva cuál aplica según el peso.
+    """
     active = list(
         ServiceType.objects.filter(active=True)
         .select_related('category')
@@ -48,23 +66,18 @@ def _build_service_options():
     uncategorized = [st for st in active if st.category_id is None]
 
     rates, units, tier_map = {}, {}, {}
-    reps = {}
-    min_rates = {}
     group_rows = {}
     for st in active:
         if st.is_tier and st.category_id:
             group_rows.setdefault((st.category_id, st.name), []).append(st)
+        rates[st.pk] = str(st.rate_per_kg)
+        units[st.pk] = st.unit
 
     for key, members in group_rows.items():
         members.sort(
             key=lambda m: (m.min_weight_kg is None, m.min_weight_kg or Decimal('0'), m.pk)
         )
-        rep = members[0]
-        reps[key] = rep
-        min_rates[key] = min((Decimal(m.rate_per_kg) for m in members))
-        rates[rep.pk] = str(rep.rate_per_kg)
-        units[rep.pk] = 'kg'
-        tier_map[rep.pk] = [
+        band_list = [
             {
                 'pk': m.pk,
                 'rate': str(m.rate_per_kg),
@@ -73,48 +86,19 @@ def _build_service_options():
             }
             for m in members
         ]
-
-    for st in active:
-        if not st.is_tier:
-            rates[st.pk] = str(st.rate_per_kg)
-            units[st.pk] = st.unit
+        for m in members:
+            tier_map[m.pk] = band_list
 
     option_groups = []
-    emitted = set()
     for cat in categories:
-        opts = []
-        for st in active:
-            if st.category_id != cat.pk:
-                continue
-            if st.is_tier:
-                key = (cat.pk, st.name)
-                if key in emitted:
-                    continue
-                emitted.add(key)
-                rep = reps[key]
-                opts.append({
-                    'pk': rep.pk,
-                    'label': f'{rep.name} · desde ${min_rates[key]}/kg',
-                })
-            else:
-                unit_txt = 'kg' if st.unit == ServiceType.Unit.KG else 'pieza'
-                opts.append({
-                    'pk': st.pk,
-                    'label': f'{st.name} · ${st.rate_per_kg}/{unit_txt}',
-                })
+        opts = [
+            {'pk': st.pk, 'label': _service_label(st)}
+            for st in active if st.category_id == cat.pk
+        ]
         option_groups.append({'emoji': cat.emoji, 'name': cat.name, 'options': opts})
 
     if uncategorized:
-        opts = [
-            {
-                'pk': st.pk,
-                'label': (
-                    f'{st.name} · ${st.rate_per_kg}/'
-                    f"{'kg' if st.unit == ServiceType.Unit.KG else 'pieza'}"
-                ),
-            }
-            for st in uncategorized if not st.is_tier
-        ]
+        opts = [{'pk': st.pk, 'label': _service_label(st)} for st in uncategorized]
         if opts:
             option_groups.append({'emoji': '', 'name': 'Sin categoría', 'options': opts})
 
