@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Iniciar sesión — Lavamaster{% endblock %}
+{% block content %}
+<div class="login-wrap">
+    <div class="bubbles">
+        {% for i in "123456789" %}
+            <span class="bubble b{{ forloop.counter }}"></span>
+        {% endfor %}
+    </div>
+    <div class="login-card">
+        <div class="logo">🧺</div>
+        <h1>Lavamaster</h1>
+        <div class="tagline">Lavandería y Planchado</div>
+        {% if form.errors %}
+            <ul class="messages"><li class="error">Usuario o contraseña incorrectos 🫧</li></ul>
+        {% endif %}
+        <form method="post">
+            {% csrf_token %}
+            <label>Usuario</label>
+            {{ form.username }}
+            <label>Contraseña</label>
+            {{ form.password }}
+            <div style="margin-top:1.3rem">
+                <button type="submit" class="btn btn-primary btn-lg btn-block">Entrar 🚀</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

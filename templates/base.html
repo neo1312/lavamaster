@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Lavamaster 🧺{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/logo.svg' %}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    {% if user.is_authenticated %}
+    <header class="navbar no-print">
+        <a class="brand" href="{% url 'home' %}">
+            <img src="{% static 'img/logo.svg' %}" alt="Lavamaster"> Lavamaster
+        </a>
+        <nav>
+            <a href="{% url 'pos_home' %}" class="nav-link {% if active_page == 'pos' %}active{% endif %}">🛒 POS</a>
+            {% if user.role == 'admin' or user.is_superuser %}
+                <a href="{% url 'dashboard' %}" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">🏠 Dashboard</a>
+                <a href="{% url 'erp_receptionists' %}" class="nav-link {% if active_page == 'erp' %}active{% endif %}">👥 ERP</a>
+            {% endif %}
+            <span class="nav-user">👤 {{ user.get_full_name|default:user.username }}</span>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-muted btn-sm">Salir</button>
+            </form>
+        </nav>
+    </header>
+    {% endif %}
+
+    <main class="container">
+        {% if messages %}
+            <ul class="messages">
+                {% for message in messages %}
+                    <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{% static 'js/app.js' %}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

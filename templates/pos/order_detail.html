@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% block title %}Orden #{{ order.ticket_number }} — Lavamaster{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>Orden #{{ order.ticket_number }}</h1>
+    <div>
+        <a href="{% url 'pos_home' %}" class="btn btn-ghost">← POS</a>
+        <a href="{% url 'pos_order_ticket' order.pk %}" target="_blank" class="btn btn-primary">🖨️ Imprimir ticket</a>
+    </div>
+</div>
+
+<div class="grid-3">
+    <div class="card">
+        <h2>🧾 Resumen</h2>
+        <table class="data">
+            <tr><td>Cliente</td><td class="right"><strong>{{ order.customer.name }}</strong></td></tr>
+            {% if order.customer.phone %}<tr><td>Teléfono</td><td class="right">{{ order.customer.phone }}</td></tr>{% endif %}
+            <tr><td>Recibido</td><td class="right">{{ order.received_at|date:"d/m/Y H:i" }}</td></tr>
+            {% if order.promised_at %}<tr><td>Prometida</td><td class="right">{{ order.promised_at|date:"d/m/Y" }}</td></tr>{% endif %}
+            <tr><td>Estado</td><td class="right"><span class="badge st-{{ order.status }}">{{ order.get_status_display }}</span></td></tr>
+        </table>
+
+        <h3 style="margin-top:1.2rem">🧺 Líneas</h3>
+        <div class="table-wrap">
+            <table class="data">
+                <thead><tr><th>Servicio</th><th class="right">Peso</th><th class="right">Subtotal</th></tr></thead>
+                <tbody>
+                    {% for line in order.lines.all %}
+                        <tr>
+                            <td>{{ line.service_type.name }}</td>
+                            <td class="right">{{ line.weight_kg }} kg</td>
+                            <td class="right money">${{ line.subtotal }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:1rem">
+            <div style="text-align:center;background:#f0f9ff;border-radius:.8rem;padding:.6rem">
+                <div class="section-title">Total</div>
+                <div class="big-number" style="color:var(--primary-dark)">${{ order.subtotal }}</div>
+            </div>
+            <div style="text-align:center;background:#f0fdf4;border-radius:.8rem;padding:.6rem">
+                <div class="section-title">Pagado</div>
+                <div class="big-number" style="color:var(--success)">${{ order.paid }}</div>
+            </div>
+            <div style="text-align:center;background:#fef2f2;border-radius:.8rem;padding:.6rem">
+                <div class="section-title">Saldo</div>
+                <div class="big-number" style="color:var(--danger)">${{ order.balance_due }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <h2>🛤️ Progreso</h2>
+            <ul class="timeline">
+                {% for state, value, label, emoji in timeline %}
+                    <li class="{{ state }}">
+                        <span class="dot">{{ emoji }}</span>
+                        <div>
+                            <div class="t-label">{{ label }}</div>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+            {% if next_statuses %}
+                <form method="post" style="margin-top:.8rem">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="status">
+                    <div class="input-inline">
+                        <select name="status">
+                            {% for value, label in next_statuses %}
+                                <option value="{{ value }}">→ {{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-accent">Avanzar ⏭️</button>
+                    </div>
+                </form>
+            {% elif order.status == 'completed' %}
+                <div class="btn btn-success btn-block" style="margin-top:.8rem">✅ Orden completada</div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>💳 Pagos</h2>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Fecha</th><th class="right">Monto</th><th>Método</th></tr></thead>
+                    <tbody>
+                        {% for p in order.payments.all %}
+                            <tr>
+                                <td>{{ p.received_at|date:"d/m H:i" }}</td>
+                                <td class="right money">${{ p.amount }}</td>
+                                <td>{{ p.get_method_display }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="3" class="muted">Sin pagos.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if order.balance_due > 0 %}
+                <form method="post" style="margin-top:1rem">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="payment">
+                    <div class="row">
+                        <div style="flex:2">
+                            <label>Monto</label>
+                            <input type="text" name="amount" value="{{ order.balance_due }}" inputmode="decimal">
+                        </div>
+                        <div style="flex:1">
+                            <label>Método</label>
+                            <select name="method">
+                                <option value="cash" selected>💵 Efectivo</option>
+                                <option value="card">💳 Tarjeta</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-top:.8rem">
+                        <button type="submit" class="btn btn-success btn-block">Registrar pago 💰</button>
+                    </div>
+                </form>
+            {% else %}
+                <div class="btn btn-success btn-block" style="margin-top:1rem">💚 Pagado en su totalidad</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

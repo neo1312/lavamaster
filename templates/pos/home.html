@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+{% block title %}POS — Lavamaster{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>🛒 POS — Recibir órdenes</h1>
+    <span class="pill small">Pago inicial por defecto: $0 · Efectivo</span>
+</div>
+
+<div class="grid-2">
+    <div>
+        <div class="card">
+            <div class="card-title">
+                <h2>🧺 Nueva orden</h2>
+            </div>
+            <form method="post" id="order-form">
+                {% csrf_token %}
+                <label>Cliente</label>
+                <select name="customer_id" id="customer-select">
+                    <option value="">— Cliente existente —</option>
+                    {% for c in customers %}
+                        <option value="{{ c.id }}">{{ c.name }}{% if c.phone %} · {{ c.phone }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+                <div style="margin-top:.5rem">
+                    <label style="display:inline;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" id="new-customer-toggle" style="width:auto;margin-right:.35rem">➕ Nuevo cliente
+                    </label>
+                </div>
+                <div id="new-customer-fields" class="hidden">
+                    <label>Nombre</label>
+                    <input type="text" name="customer_name" placeholder="Nombre completo">
+                    <label>Teléfono</label>
+                    <input type="text" name="customer_phone" placeholder="10 dígitos">
+                </div>
+
+                <label>Servicios / prendas</label>
+                <table class="data" id="lines-table">
+                    <thead><tr><th>Tipo</th><th style="width:90px">Peso kg</th><th style="width:40px"></th></tr></thead>
+                    <tbody>
+                        <tr class="line-row">
+                            <td>
+                                <select name="service_type" class="service-type">
+                                    {% for st in service_types %}
+                                        <option value="{{ st.id }}" data-rate="{{ st.rate_per_kg }}">{{ st.name }} · ${{ st.rate_per_kg }}/kg</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input type="text" name="weight" class="weight" inputmode="decimal" placeholder="0.00"></td>
+                            <td><button type="button" class="btn btn-muted btn-sm remove-line" style="padding:.3rem .6rem">✕</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div style="margin:.6rem 0">
+                    <button type="button" class="btn btn-ghost btn-sm" id="add-line">➕ Agregar línea</button>
+                </div>
+
+                <div class="row" style="align-items:center;margin-top:.5rem">
+                    <div style="flex:1">
+                        <div class="section-title">Total en vivo</div>
+                        <span class="pill" id="total-amount">$0.00</span>
+                        <div class="muted" id="total-weight" style="margin-top:.2rem">0.00 kg</div>
+                    </div>
+                    <div style="flex:1">
+                        <label>Pago inicial</label>
+                        <input type="text" name="payment_amount" id="payment-amount" inputmode="decimal" value="0.00">
+                        <label>Método</label>
+                        <select name="payment_method">
+                            <option value="cash" selected>💵 Efectivo</option>
+                            <option value="card">💳 Tarjeta</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-top:1rem">
+                    <button type="submit" class="btn btn-success btn-lg btn-block">Registrar orden 🚀</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <div class="card-title">
+                <h2>📋 Órdenes</h2>
+                <div class="chips" style="margin-top:0">
+                    <a class="chip {% if date_filter == 'today' %}active w-today{% endif %}" href="?status={{ status_filter }}&date=today">📅 Hoy</a>
+                    <a class="chip {% if date_filter == 'all' %}active w-today{% endif %}" href="?status={{ status_filter }}&date=all">🗓️ Todas</a>
+                </div>
+            </div>
+
+            <div class="chips" style="margin-bottom:1rem">
+                {% for value, label, emoji in status_chips %}
+                    <a class="chip {% if status_filter == value %}active{% endif %}"
+                       href="?{% if value %}status={{ value }}&{% endif %}date={{ date_filter }}">{{ emoji }} {{ label }}</a>
+                {% endfor %}
+            </div>
+
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>#</th><th>Cliente</th><th class="right">Kg</th>
+                            <th class="right">Total</th><th class="right">Saldo</th><th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for o in orders %}
+                            <tr class="clickable" onclick="location.href='{% url 'pos_order_detail' o.pk %}'">
+                                <td><strong>{{ o.ticket_number }}</strong></td>
+                                <td>{{ o.customer.name }}</td>
+                                <td class="right money">{{ o.total_weight_kg }}</td>
+                                <td class="right money">${{ o.subtotal }}</td>
+                                <td class="right money {% if o.balance_due > 0 %}negative{% else %}positive{% endif %}">
+                                    ${{ o.balance_due }}
+                                </td>
+                                <td><span class="badge st-{{ o.status }}">{{ o.get_status_display }}</span></td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="6" class="muted">Sin órdenes aquí 🫧</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const rates = {};
+    {% for st in service_types %}rates[{{ st.id }}] = {{ st.rate_per_kg }};{% endfor %}
+
+    function recompute() {
+        let totalWeight = 0, totalAmount = 0;
+        document.querySelectorAll('#lines-table tbody tr.line-row').forEach(row => {
+            const st = row.querySelector('.service-type');
+            const w = row.querySelector('.weight');
+            const weight = parseFloat((w.value || '0').replace(',', '.'));
+            if (weight > 0 && rates[st.value]) {
+                totalWeight += weight;
+                totalAmount += weight * rates[st.value];
+            }
+        });
+        document.getElementById('total-weight').textContent = totalWeight.toFixed(2) + ' kg';
+        document.getElementById('total-amount').textContent = '$' + totalAmount.toFixed(2);
+        const pay = document.getElementById('payment-amount');
+        if (!pay.dataset.touched) pay.value = totalAmount.toFixed(2);
+    }
+
+    document.getElementById('lines-table').addEventListener('input', recompute);
+    document.getElementById('payment-amount').addEventListener('input', e => { e.target.dataset.touched = '1'; });
+
+    function addLine() {
+        const tbody = document.querySelector('#lines-table tbody');
+        const clone = tbody.querySelector('tr.line-row').cloneNode(true);
+        clone.querySelector('.weight').value = '';
+        clone.querySelector('.remove-line').onclick = () => { clone.remove(); recompute(); };
+        tbody.appendChild(clone);
+    }
+    document.getElementById('add-line').addEventListener('click', addLine);
+    document.querySelectorAll('.remove-line').forEach(b => b.onclick = () => { b.closest('tr').remove(); recompute(); });
+
+    document.getElementById('new-customer-toggle').addEventListener('change', e => {
+        document.getElementById('new-customer-fields').classList.toggle('hidden', !e.target.checked);
+        document.getElementById('customer-select').disabled = e.target.checked;
+    });
+
+    document.getElementById('order-form').addEventListener('submit', e => {
+        const totalKg = parseFloat(document.getElementById('total-weight').textContent);
+        if (totalKg <= 0) {
+            e.preventDefault();
+            showToast('Agrega al menos una línea con peso válido.', 'warning');
+        }
+    });
+</script>
+{% endblock %}

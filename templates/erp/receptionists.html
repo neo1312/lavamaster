@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Recepcionistas — Lavamaster{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>👥 Recepcionistas</h1>
+    <a href="{% url 'dashboard' %}" class="btn btn-ghost">← Dashboard</a>
+</div>
+
+<div class="grid-2">
+    <div>
+        <div class="card">
+            <h2>➕ Crear recepcionista</h2>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                <label>Usuario</label>
+                <input type="text" name="username" required>
+                <label>Nombre completo</label>
+                <input type="text" name="full_name">
+                <label>Contraseña</label>
+                <input type="text" name="password" required>
+                <div style="margin-top:1rem">
+                    <button type="submit" class="btn btn-success">Crear usuario 🎉</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <h2>📋 Lista de recepcionistas</h2>
+            <div class="table-wrap">
+                <table class="data">
+                    <thead><tr><th>Usuario</th><th>Nombre</th><th>Estado</th><th>Acciones</th></tr></thead>
+                    <tbody>
+                        {% for r in receptionists %}
+                            <tr>
+                                <td><strong>{{ r.username }}</strong></td>
+                                <td>{{ r.first_name|default:'—' }}</td>
+                                <td>
+                                    <span class="badge {% if r.is_active %}st-delivered{% else %}st-completed{% endif %}">
+                                        {{ r.is_active|yesno:'Activo,Inactivo' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+                                        <form method="post" style="margin:0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="toggle">
+                                            <input type="hidden" name="user_id" value="{{ r.pk }}">
+                                            <button class="btn btn-sm {% if r.is_active %}btn-danger{% else %}btn-success{% endif %}"
+                                                    data-confirm="¿{{ r.is_active|yesno:'Desactivar,Activar' }} a {{ r.username }}?">
+                                                {{ r.is_active|yesno:'⛔,▶️' }}
+                                            </button>
+                                        </form>
+                                        <form method="post" style="margin:0" class="reset-form">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="reset_password">
+                                            <input type="hidden" name="user_id" value="{{ r.pk }}">
+                                            <input type="text" name="password" placeholder="Nueva contraseña" style="width:130px;display:inline-block" required>
+                                            <button class="btn btn-sm btn-primary">🔑</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr><td colspan="4" class="muted">No hay recepcionistas.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

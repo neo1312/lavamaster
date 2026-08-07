@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>Ticket #{{ order.ticket_number }}</title>
+    <style>
+        @page { size: 80mm auto; margin: 0; }
+        body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            width: 72mm;
+            margin: 0 auto;
+            padding: 4mm 0;
+        }
+        .center { text-align: center; }
+        .bold { font-weight: 700; }
+        .line { border-top: 1px dashed #000; margin: 3mm 0; }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 1px 0; }
+        .right { text-align: right; }
+        .qr { margin-top: 3mm; text-align: center; }
+        .qr img { width: 40mm; height: 40mm; }
+        @media print {
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="margin-bottom:4mm">
+        <button onclick="window.print()">Imprimir</button>
+    </div>
+
+    <div class="center bold" style="font-size:15px">LAVAMASTER</div>
+    <div class="center">Lavandería y Planchado</div>
+    <div class="line"></div>
+
+    <div class="center bold" style="font-size:16px">TICKET {{ order.ticket_number }}</div>
+    <div class="line"></div>
+
+    <table>
+        <tr><td>Cliente</td><td class="right bold">{{ order.customer.name }}</td></tr>
+        {% if order.customer.phone %}<tr><td>Teléfono</td><td class="right">{{ order.customer.phone }}</td></tr>{% endif %}
+        <tr><td>Fecha</td><td class="right">{{ order.received_at|date:"d/m/Y H:i" }}</td></tr>
+        {% if order.promised_at %}<tr><td>Entrega prometida</td><td class="right">{{ order.promised_at|date:"d/m/Y" }}</td></tr>{% endif %}
+    </table>
+    <div class="line"></div>
+
+    <table>
+        {% for line in order.lines.all %}
+            <tr>
+                <td>{{ line.service_type.name }}<br>{{ line.weight_kg }} kg × ${{ line.rate_per_kg }}</td>
+                <td class="right bold">${{ line.subtotal }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+    <div class="line"></div>
+
+    <table>
+        <tr><td>Peso total</td><td class="right">{{ order.total_weight_kg }} kg</td></tr>
+        <tr class="bold" style="font-size:14px"><td>TOTAL</td><td class="right">${{ order.subtotal }}</td></tr>
+        <tr><td>Anticipo / pagado</td><td class="right">${{ order.paid }}</td></tr>
+        <tr class="bold"><td>SALDO</td><td class="right">${{ order.balance_due }}</td></tr>
+    </table>
+    <div class="line"></div>
+
+    <div class="qr">
+        {% if qr_data_uri %}
+            <img src="{{ qr_data_uri }}" alt="QR">
+        {% else %}
+            <div style="text-align:center">Código QR<br>#{{ order.ticket_number }}</div>
+        {% endif %}
+    </div>
+    <div class="center bold">Guarda este ticket para recoger tu pedido</div>
+</body>
+</html>

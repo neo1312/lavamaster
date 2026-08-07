@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}Clientes — Lavamaster{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>📇 Clientes</h1>
+    <a href="{% url 'dashboard' %}" class="btn btn-ghost">← Dashboard</a>
+</div>
+
+<div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:end">
+        <form method="get" style="flex:1;min-width:220px;display:flex;gap:.5rem;align-items:end">
+            <div style="flex:1">
+                <label>Buscar</label>
+                <input type="text" name="q" value="{{ query }}" placeholder="Nombre o teléfono…">
+            </div>
+            <button type="submit" class="btn btn-primary">🔍</button>
+        </form>
+        <div>
+            <button class="btn btn-success" onclick="document.getElementById('new-customer-card').classList.toggle('hidden')">➕ Nuevo cliente</button>
+        </div>
+    </div>
+</div>
+
+<div id="new-customer-card" class="card hidden">
+    <h2>➕ Crear cliente</h2>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create">
+        <div class="row">
+            <div style="flex:2">
+                <label>Nombre</label>
+                <input type="text" name="name" required>
+            </div>
+            <div style="flex:1">
+                <label>Teléfono</label>
+                <input type="text" name="phone">
+            </div>
+            <div style="flex:1">
+                <label>Email</label>
+                <input type="email" name="email">
+            </div>
+            <div style="flex:1">
+                <label>RFC</label>
+                <input type="text" name="rfc">
+            </div>
+        </div>
+        <div style="margin-top:1rem">
+            <button type="submit" class="btn btn-success">Guardar cliente 📇</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h2>📋 Lista</h2>
+    <div class="table-wrap">
+        <table class="data">
+            <thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>RFC</th><th>Estado</th><th></th></tr></thead>
+            <tbody>
+                {% for c in customers %}
+                    <tr>
+                        <td><strong>{{ c.name }}</strong></td>
+                        <td>{{ c.phone|default:'—' }}</td>
+                        <td>{{ c.email|default:'—' }}</td>
+                        <td>{{ c.rfc|default:'—' }}</td>
+                        <td>
+                            <span class="badge {% if c.blacklisted %}st-completed{% else %}st-delivered{% endif %}">
+                                {{ c.blacklisted|yesno:'Bloqueado,Normal' }}
+                            </span>
+                        </td>
+                        <td><button class="btn btn-sm btn-muted" onclick="document.getElementById('ec-{{ c.pk }}').classList.toggle('hidden')">✏️ Editar</button></td>
+                    </tr>
+                    <tr id="ec-{{ c.pk }}" class="hidden">
+                        <td colspan="6" style="background:#f8fafc">
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="update">
+                                <input type="hidden" name="id" value="{{ c.pk }}">
+                                <div class="row" style="align-items:end">
+                                    <div style="flex:2">
+                                        <label>Nombre</label>
+                                        <input type="text" name="name" value="{{ c.name }}">
+                                    </div>
+                                    <div style="flex:1">
+                                        <label>Teléfono</label>
+                                        <input type="text" name="phone" value="{{ c.phone }}">
+                                    </div>
+                                    <div style="flex:1">
+                                        <label>Email</label>
+                                        <input type="email" name="email" value="{{ c.email }}">
+                                    </div>
+                                    <div style="flex:1">
+                                        <label>RFC</label>
+                                        <input type="text" name="rfc" value="{{ c.rfc }}">
+                                    </div>
+                                    <div>
+                                        <label style="text-transform:none;letter-spacing:0"><input type="checkbox" name="blacklisted" {% if c.blacklisted %}checked{% endif %} style="width:auto;margin-right:.3rem">Bloqueado</label>
+                                    </div>
+                                    <div>
+                                        <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="muted">No hay clientes.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
