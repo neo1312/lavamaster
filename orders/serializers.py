@@ -18,8 +18,8 @@ class OrderLineSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderLine
         fields = (
-            'id', 'service_type', 'service_type_name', 'weight_kg',
-            'rate_per_kg', 'subtotal', 'notes',
+            'id', 'service_type', 'service_type_name', 'unit',
+            'weight_kg', 'quantity', 'rate_per_kg', 'subtotal', 'notes',
         )
 
 
@@ -75,13 +75,26 @@ class OrderSerializer(serializers.ModelSerializer):
         )
 
     def validate_lines(self, lines):
+        from decimal import Decimal
         if not lines:
             raise serializers.ValidationError('La orden requiere al menos una línea.')
         for line in lines:
-            if line.get('weight_kg', 0) <= 0:
-                raise serializers.ValidationError(
-                    'El peso debe ser mayor a cero en todas las líneas.'
-                )
+            service_type = line.get('service_type')
+            unit = line.get('unit') or (
+                service_type.unit if service_type is not None else 'kg'
+            )
+            if unit == 'piece':
+                quantity = line.get('quantity') or 1
+                if quantity < 1:
+                    raise serializers.ValidationError(
+                        'La cantidad debe ser mayor a cero en todas las líneas.'
+                    )
+            else:
+                weight = line.get('weight_kg') or 0
+                if Decimal(weight) <= 0:
+                    raise serializers.ValidationError(
+                        'El peso debe ser mayor a cero en todas las líneas.'
+                    )
         return lines
 
     def create(self, validated_data):

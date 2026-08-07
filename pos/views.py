@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -15,7 +16,7 @@ from orders.models import (
     ACTIVE_STATUSES,
     ALLOWED_TRANSITIONS,
 )
-from pricing.models import ServiceType
+from pricing.models import ServiceCategory, ServiceType
 
 STATUS_CHIPS = [
     ('', 'Todos', '📋'),
@@ -36,11 +37,98 @@ def _parse_weight(raw):
     return value if value > 0 else None
 
 
+def _build_service_options():
+    """Estructura del select agrupado por categoría + datos para el JS."""
+    active = list(
+        ServiceType.objects.filter(active=True)
+        .select_related('category')
+        .order_by('category__sort_order', 'sort_order', 'name')
+    )
+    categories = list(ServiceCategory.objects.all().order_by('sort_order', 'name'))
+    uncategorized = [st for st in active if st.category_id is None]
+
+    rates, units, tier_map = {}, {}, {}
+    reps = {}
+    min_rates = {}
+    group_rows = {}
+    for st in active:
+        if st.is_tier and st.category_id:
+            group_rows.setdefault((st.category_id, st.name), []).append(st)
+
+    for key, members in group_rows.items():
+        members.sort(
+            key=lambda m: (m.min_weight_kg is None, m.min_weight_kg or Decimal('0'), m.pk)
+        )
+        rep = members[0]
+        reps[key] = rep
+        min_rates[key] = min((Decimal(m.rate_per_kg) for m in members))
+        rates[rep.pk] = str(rep.rate_per_kg)
+        units[rep.pk] = 'kg'
+        tier_map[rep.pk] = [
+            {
+                'pk': m.pk,
+                'rate': str(m.rate_per_kg),
+                'min': str(m.min_weight_kg) if m.min_weight_kg is not None else None,
+                'max': str(m.max_weight_kg) if m.max_weight_kg is not None else None,
+            }
+            for m in members
+        ]
+
+    for st in active:
+        if not st.is_tier:
+            rates[st.pk] = str(st.rate_per_kg)
+            units[st.pk] = st.unit
+
+    option_groups = []
+    emitted = set()
+    for cat in categories:
+        opts = []
+        for st in active:
+            if st.category_id != cat.pk:
+                continue
+            if st.is_tier:
+                key = (cat.pk, st.name)
+                if key in emitted:
+                    continue
+                emitted.add(key)
+                rep = reps[key]
+                opts.append({
+                    'pk': rep.pk,
+                    'label': f'{rep.name} · desde ${min_rates[key]}/kg',
+                })
+            else:
+                unit_txt = 'kg' if st.unit == ServiceType.Unit.KG else 'pieza'
+                opts.append({
+                    'pk': st.pk,
+                    'label': f'{st.name} · ${st.rate_per_kg}/{unit_txt}',
+                })
+        option_groups.append({'emoji': cat.emoji, 'name': cat.name, 'options': opts})
+
+    if uncategorized:
+        opts = [
+            {
+                'pk': st.pk,
+                'label': (
+                    f'{st.name} · ${st.rate_per_kg}/'
+                    f"{'kg' if st.unit == ServiceType.Unit.KG else 'pieza'}"
+                ),
+            }
+            for st in uncategorized if not st.is_tier
+        ]
+        if opts:
+            option_groups.append({'emoji': '', 'name': 'Sin categoría', 'options': opts})
+
+    return {
+        'service_groups': option_groups,
+        'rates': rates,
+        'units': units,
+        'tier_map': tier_map,
+    }
+
+
 @login_required
 @require_http_methods(['GET', 'POST'])
 def pos_home(request):
-    service_types = ServiceType.objects.filter(active=True)
-
     if request.method == 'POST':
         customer_id = request.POST.get('customer_id')
         customer_name = request.POST.get('customer_name', '').strip()
@@ -55,26 +143,43 @@ def pos_home(request):
             return redirect('pos_home')
 
         service_ids = request.POST.getlist('service_type')
-        weights = request.POST.getlist('weight')
+        raw_values = request.POST.getlist('weight')
 
         lines = []
-        for service_id, weight in zip(service_ids, weights):
+        for service_id, raw in zip(service_ids, raw_values):
             if not service_id:
                 continue
-            service_type = ServiceType.objects.filter(pk=service_id).first()
-            parsed = _parse_weight(weight)
-            if service_type and parsed is not None:
-                lines.append((service_type, parsed))
+            service = ServiceType.objects.filter(pk=service_id, active=True).first()
+            if not service:
+                continue
+            parsed = _parse_weight(raw)
+            if parsed is None:
+                continue
+            resolved = service.resolve_for(parsed)
+            if resolved.unit == ServiceType.Unit.PIECE:
+                qty = int(parsed)
+                if qty != parsed or qty < 1:
+                    continue
+                lines.append((resolved, 'piece', qty))
+            else:
+                lines.append((resolved, 'kg', parsed))
 
         if not lines:
-            messages.error(request, 'Agrega al menos una línea con peso válido.')
+            messages.error(request, 'Agrega al menos una línea con peso o cantidad válidos.')
             return redirect('pos_home')
 
         order = Order.objects.create(customer=customer, received_by=request.user)
-        for service_type, weight in lines:
-            OrderLine.objects.create(
-                order=order, service_type=service_type, weight_kg=weight
-            )
+        for service_type, unit, amount in lines:
+            if unit == 'piece':
+                OrderLine.objects.create(
+                    order=order, service_type=service_type, unit='piece',
+                    quantity=amount, weight_kg=0,
+                )
+            else:
+                OrderLine.objects.create(
+                    order=order, service_type=service_type, unit='kg',
+                    weight_kg=amount,
+                )
         order.refresh_totals()
 
         payment_amount = _parse_weight(request.POST.get('payment_amount') or '0')
@@ -108,8 +213,12 @@ def pos_home(request):
     if date_filter == 'today':
         orders = orders.filter(received_at__date=timezone.localdate())
 
+    options = _build_service_options()
     return render(request, 'pos/home.html', {
-        'service_types': service_types,
+        'service_groups': options['service_groups'],
+        'rates_json': json.dumps(options['rates']),
+        'units_json': json.dumps(options['units']),
+        'tiers_json': json.dumps(options['tier_map']),
         'customers': Customer.objects.order_by('name'),
         'orders': orders,
         'status_chips': STATUS_CHIPS,

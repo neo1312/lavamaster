@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import ProtectedError
@@ -6,7 +8,20 @@ from django.views.decorators.http import require_http_methods
 
 from accounts.models import User
 from customers.models import Customer
-from pricing.models import ServiceType
+from pricing.models import ServiceCategory, ServiceType
+
+
+def _parse_decimal(raw, min_value=None):
+    raw = str(raw or '').strip().replace(',', '.')
+    if not raw:
+        return None
+    try:
+        value = Decimal(raw)
+    except InvalidOperation:
+        return None
+    if min_value is not None and value < min_value:
+        return None
+    return value
 
 MODULES = [
     {
@@ -129,26 +144,62 @@ def service_types(request):
         action = request.POST.get('action')
         if action == 'create':
             name = request.POST.get('name', '').strip()
-            rate = request.POST.get('rate_per_kg', '').strip().replace(',', '.')
-            days = request.POST.get('estimated_days', '1').strip()
+            unit = request.POST.get('unit', 'kg')
+            rate = _parse_decimal(request.POST.get('rate_per_kg'), min_value=Decimal('0.01'))
+            days_raw = request.POST.get('estimated_days', '1').strip()
             try:
-                rate_dec = float(rate)
-                days_int = int(days)
+                days_int = int(days_raw)
             except ValueError:
-                messages.error(request, 'Tarifa o días inválidos.')
-                return redirect('erp_service_types')
-            if not name or rate_dec <= 0:
-                messages.error(request, 'Nombre y tarifa válida son obligatorios.')
+                days_int = None
+            if not name or rate is None or days_int is None or unit not in ('kg', 'piece'):
+                messages.error(request, 'Revisa los datos: nombre, tarifa y días son obligatorios.')
             else:
+                category = None
+                category_id = request.POST.get('category', '') or None
+                if category_id:
+                    category = ServiceCategory.objects.filter(pk=category_id).first()
+                new_category = request.POST.get('new_category_name', '').strip()
+                if new_category:
+                    category, _ = ServiceCategory.objects.get_or_create(
+                        name__iexact=new_category,
+                        defaults={'name': new_category, 'emoji': request.POST.get('new_category_emoji', '').strip()},
+                    )
                 ServiceType.objects.create(
-                    name=name, rate_per_kg=rate_dec, estimated_days=days_int,
+                    name=name, category=category, unit=unit,
+                    min_weight_kg=(
+                        _parse_decimal(request.POST.get('min_weight_kg'))
+                        if unit == 'kg' else None
+                    ),
+                    max_weight_kg=(
+                        _parse_decimal(request.POST.get('max_weight_kg'))
+                        if unit == 'kg' else None
+                    ),
+                    rate_per_kg=rate, estimated_days=days_int,
                 )
-                messages.success(request, f'Servicio {name} creado 💲')
+                messages.success(request, f'Tarifa {name} creada 💲')
         elif action == 'update':
             st = get_object_or_404(ServiceType, pk=request.POST.get('id'))
             st.name = request.POST.get('name', st.name).strip()
-            st.rate_per_kg = request.POST.get('rate_per_kg', st.rate_per_kg)
-            st.estimated_days = request.POST.get('estimated_days', st.estimated_days)
+            unit = request.POST.get('unit', st.unit)
+            if unit in ('kg', 'piece'):
+                st.unit = unit
+            category_id = request.POST.get('category', '') or None
+            st.category = (
+                ServiceCategory.objects.filter(pk=category_id).first()
+                if category_id else None
+            )
+            rate = _parse_decimal(request.POST.get('rate_per_kg'), min_value=Decimal('0.01'))
+            if rate is not None:
+                st.rate_per_kg = rate
+            days_raw = request.POST.get('estimated_days', '').strip()
+            if days_raw.isdigit() and int(days_raw) > 0:
+                st.estimated_days = int(days_raw)
+            if st.unit == 'kg':
+                st.min_weight_kg = _parse_decimal(request.POST.get('min_weight_kg'))
+                st.max_weight_kg = _parse_decimal(request.POST.get('max_weight_kg'))
+            else:
+                st.min_weight_kg = None
+                st.max_weight_kg = None
             st.active = 'active' in request.POST
             st.save()
             messages.success(request, 'Tarifa actualizada.')
@@ -162,10 +213,47 @@ def service_types(request):
                     request,
                     f"No se puede eliminar «{st.name}»: se usa en órdenes. Desactívala en su lugar.",
                 )
+        elif action == 'category_create':
+            name = request.POST.get('name', '').strip()
+            if not name:
+                messages.error(request, 'El nombre de la categoría es obligatorio.')
+            elif ServiceCategory.objects.filter(name__iexact=name).exists():
+                messages.error(request, 'Ya existe una categoría con ese nombre.')
+            else:
+                ServiceCategory.objects.create(
+                    name=name, emoji=request.POST.get('emoji', '').strip(),
+                )
+                messages.success(request, f'Categoría {name} creada 🏷️')
+        elif action == 'category_update':
+            cat = get_object_or_404(ServiceCategory, pk=request.POST.get('id'))
+            name = request.POST.get('name', '').strip()
+            if name:
+                cat.name = name
+            cat.emoji = request.POST.get('emoji', '').strip()
+            cat.save()
+            messages.success(request, 'Categoría actualizada.')
+        elif action == 'category_delete':
+            cat = get_object_or_404(ServiceCategory, pk=request.POST.get('id'))
+            cat.delete()
+            messages.success(
+                request, 'Categoría eliminada (sus tarifas quedan sin categoría).'
+            )
         return redirect('erp_service_types')
 
+    categories = []
+    for cat in ServiceCategory.objects.order_by('sort_order', 'name'):
+        categories.append((
+            cat,
+            ServiceType.objects.filter(category=cat).order_by('sort_order', 'name'),
+        ))
+    uncategorized = ServiceType.objects.filter(
+        category__isnull=True
+    ).order_by('sort_order', 'name')
+
     return render(request, 'erp/service_types.html', {
-        'service_types': ServiceType.objects.order_by('sort_order', 'name'),
+        'categories': categories,
+        'uncategorized': uncategorized,
+        'category_list': ServiceCategory.objects.order_by('sort_order', 'name'),
         'active_page': 'erp',
     })
 

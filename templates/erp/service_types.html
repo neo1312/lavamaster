@@ -5,6 +5,7 @@
     <h1>💲 Tarifas por servicio</h1>
     <div class="row" style="margin:0">
         <button type="button" class="btn btn-accent" data-modal-open="#create-modal">➕ Nueva tarifa</button>
+        <button type="button" class="btn btn-primary" data-modal-open="#cat-modal">⚙️ Categorías</button>
         <a href="{% url 'dashboard' %}" class="btn btn-ghost">← Dashboard</a>
     </div>
 </div>
@@ -14,28 +15,40 @@
         <table class="data">
             <thead>
                 <tr>
-                    <th style="width:38%">Servicio</th>
-                    <th class="right">$/kg</th>
+                    <th style="min-width:180px">Servicio</th>
+                    <th style="min-width:140px">Categoría</th>
+                    <th>Unidad</th>
+                    <th style="min-width:120px">Rango (kg)</th>
+                    <th>Tarifa $</th>
                     <th>Días</th>
                     <th>Activo</th>
                     <th class="right">Acciones</th>
                 </tr>
             </thead>
             <tbody>
-                {% for st in service_types %}
-                    <tr>
-                        <td><input type="text" name="name" value="{{ st.name }}" form="sf-{{ st.pk }}"></td>
-                        <td class="right"><input type="text" name="rate_per_kg" value="{{ st.rate_per_kg }}" inputmode="decimal" style="width:90px;text-align:right" form="sf-{{ st.pk }}"></td>
-                        <td><input type="number" name="estimated_days" value="{{ st.estimated_days }}" min="1" style="width:70px" form="sf-{{ st.pk }}"></td>
-                        <td><input type="checkbox" name="active" {% if st.active %}checked{% endif %} style="width:auto" form="sf-{{ st.pk }}"></td>
-                        <td class="right" style="white-space:nowrap">
-                            <button type="submit" class="btn btn-sm btn-primary" form="sf-{{ st.pk }}">Guardar</button>
-                            <button type="submit" class="btn btn-sm btn-danger" form="df-{{ st.pk }}" data-confirm="¿Eliminar «{{ st.name }}»?">🗑️</button>
+                {% for cat, services in categories %}
+                    <tr class="cat-head">
+                        <td colspan="8">
+                            <strong>{{ cat.emoji }} {{ cat.name }}</strong>
+                            <span class="muted" style="font-weight:700">({{ services|length }})</span>
                         </td>
                     </tr>
-                {% empty %}
-                    <tr><td colspan="5" class="muted">Sin servicios. Crea uno con el botón de arriba.</td></tr>
+                    {% for st in services %}
+                        {% include 'erp/partials/service_row.html' %}
+                    {% empty %}
+                        <tr><td colspan="8" class="muted">Sin tarifas en esta categoría.</td></tr>
+                    {% endfor %}
                 {% endfor %}
+
+                {% if uncategorized %}
+                    <tr class="cat-head">
+                        <td colspan="8"><strong>🗂️ Sin categoría</strong>
+                            <span class="muted" style="font-weight:700">({{ uncategorized|length }})</span></td>
+                    </tr>
+                    {% for st in uncategorized %}
+                        {% include 'erp/partials/service_row.html' %}
+                    {% endfor %}
+                {% endif %}
             </tbody>
         </table>
     </div>
@@ -51,10 +64,55 @@
             {% csrf_token %}
             <input type="hidden" name="action" value="create">
             <label>Nombre</label>
-            <input type="text" name="name" required placeholder="Ej. Ropa normal">
+            <input type="text" name="name" required placeholder="Ej. Lavado general">
+
+            <label>Categoría</label>
+            <select name="category" id="create-category-select">
+                <option value="">— Sin categoría —</option>
+                {% for cat in category_list %}
+                    <option value="{{ cat.pk }}">{{ cat.emoji }} {{ cat.name }}</option>
+                {% endfor %}
+            </select>
+            <div style="margin-top:.5rem">
+                <label style="display:inline;text-transform:none;letter-spacing:0">
+                    <input type="checkbox" id="new-category-toggle" style="width:auto;margin-right:.35rem">➕ Nueva categoría
+                </label>
+            </div>
+            <div id="new-category-fields" class="hidden">
+                <div class="row">
+                    <div style="flex:3">
+                        <label>Nombre de la categoría</label>
+                        <input type="text" name="new_category_name" placeholder="Ej. Lavado especial">
+                    </div>
+                    <div style="flex:1">
+                        <label>Emoji</label>
+                        <input type="text" name="new_category_emoji" placeholder="🧺">
+                    </div>
+                </div>
+            </div>
+
+            <label>Unidad</label>
+            <select name="unit" class="unit-select">
+                <option value="kg" selected>Por kg</option>
+                <option value="piece">Por pieza</option>
+            </select>
+
+            <div class="range-fields">
+                <div class="row">
+                    <div style="flex:1">
+                        <label>Peso mín (kg)</label>
+                        <input type="text" name="min_weight_kg" inputmode="decimal" placeholder="0.50">
+                    </div>
+                    <div style="flex:1">
+                        <label>Peso máx (kg)</label>
+                        <input type="text" name="max_weight_kg" inputmode="decimal" placeholder="5.00">
+                    </div>
+                </div>
+            </div>
+
             <div class="row">
                 <div style="flex:1">
-                    <label>Tarifa por kg ($)</label>
+                    <label>Tarifa ($/kg o $/pieza)</label>
                     <input type="text" name="rate_per_kg" inputmode="decimal" required placeholder="Ej. 25.00">
                 </div>
                 <div style="flex:1">
@@ -70,7 +128,56 @@
     </div>
 </div>
 
-{% for st in service_types %}
+<div class="modal-overlay hidden" id="cat-modal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cat-modal-title" style="width:min(520px,94vw)">
+        <div class="modal-head">
+            <h3 id="cat-modal-title">⚙️ Categorías</h3>
+            <button type="button" class="modal-close" data-modal-close aria-label="Cerrar">✕</button>
+        </div>
+
+        <form method="post" class="input-inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="category_create">
+            <input type="text" name="name" placeholder="Nueva categoría" required style="flex:1">
+            <input type="text" name="emoji" placeholder="🧺" style="width:70px">
+            <button type="submit" class="btn btn-success btn-sm">Añadir</button>
+        </form>
+
+        <table class="data" style="margin-top:1rem">
+            <thead><tr><th>Emoji</th><th>Nombre</th><th></th></tr></thead>
+            <tbody>
+                {% for cat in category_list %}
+                    <tr>
+                        <td><input type="text" name="emoji" value="{{ cat.emoji }}" style="width:60px" form="cf-{{ cat.pk }}"></td>
+                        <td><input type="text" name="name" value="{{ cat.name }}" form="cf-{{ cat.pk }}"></td>
+                        <td class="right" style="white-space:nowrap">
+                            <button type="submit" class="btn btn-sm btn-primary" form="cf-{{ cat.pk }}">Guardar</button>
+                            <button type="submit" class="btn btn-sm btn-danger" form="df-{{ cat.pk }}" data-confirm="¿Eliminar la categoría «{{ cat.name }}»? Sus tarifas quedarán sin categoría.">🗑️</button>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="3" class="muted">Sin categorías aún.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% for cat, services in categories %}
+    {% for st in services %}
+        <form id="sf-{{ st.pk }}" method="post" class="hidden">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="id" value="{{ st.pk }}">
+        </form>
+        <form id="df-{{ st.pk }}" method="post" class="hidden">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="id" value="{{ st.pk }}">
+        </form>
+    {% endfor %}
+{% endfor %}
+{% for st in uncategorized %}
     <form id="sf-{{ st.pk }}" method="post" class="hidden">
         {% csrf_token %}
         <input type="hidden" name="action" value="update">
@@ -82,4 +189,40 @@
         <input type="hidden" name="id" value="{{ st.pk }}">
     </form>
 {% endfor %}
+{% for cat in category_list %}
+    <form id="cf-{{ cat.pk }}" method="post" class="hidden">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="category_update">
+        <input type="hidden" name="id" value="{{ cat.pk }}">
+    </form>
+    <form id="df-{{ cat.pk }}" method="post" class="hidden">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="category_delete">
+        <input type="hidden" name="id" value="{{ cat.pk }}">
+    </form>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleRangeFields(unitSelect) {
+        const row = unitSelect.closest('tr, .modal');
+        const range = row ? row.querySelector('.range-fields') : null;
+        if (range) range.classList.toggle('hidden', unitSelect.value === 'piece');
+    }
+
+    document.addEventListener('change', e => {
+        if (e.target.classList.contains('unit-select')) toggleRangeFields(e.target);
+    });
+    document.querySelectorAll('.unit-select').forEach(toggleRangeFields);
+
+    const newCatToggle = document.getElementById('new-category-toggle');
+    if (newCatToggle) {
+        newCatToggle.addEventListener('change', e => {
+            const checked = e.target.checked;
+            document.getElementById('new-category-fields').classList.toggle('hidden', !checked);
+            document.getElementById('create-category-select').disabled = checked;
+        });
+    }
+</script>
 {% endblock %}

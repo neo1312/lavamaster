@@ -216,6 +216,17 @@ tr .money { font-variant-numeric: tabular-nums; font-weight: 700; }
 .money.positive { color: var(--success); }
 .money.negative { color: var(--danger); }
 
+/* ---------- Tarifas: encabezados de categoría ---------- */
+table.data tr.cat-head td {
+    background: #e0f2fe;
+    color: var(--primary-dark);
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    padding: .5rem .7rem;
+    border-bottom: 2px solid #bae6fd;
+}
+
 /* ---------- Pill (live total) ---------- */
 .pill {
     display: inline-block;

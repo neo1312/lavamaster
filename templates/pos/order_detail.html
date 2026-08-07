@@ -23,12 +23,15 @@
         <h3 style="margin-top:1.2rem">🧺 Líneas</h3>
         <div class="table-wrap">
             <table class="data">
-                <thead><tr><th>Servicio</th><th class="right">Peso</th><th class="right">Subtotal</th></tr></thead>
+                <thead><tr><th>Servicio</th><th class="right">Peso / Cant.</th><th class="right">Subtotal</th></tr></thead>
                 <tbody>
                     {% for line in order.lines.all %}
                         <tr>
                             <td>{{ line.service_type.name }}</td>
-                            <td class="right">{{ line.weight_kg }} kg</td>
+                            <td class="right">
+                                {% if line.unit == 'piece' %}× {{ line.quantity }}
+                                {% else %}{{ line.weight_kg }} kg{% endif %}
+                            </td>
                             <td class="right money">${{ line.subtotal }}</td>
                         </tr>
                     {% endfor %}

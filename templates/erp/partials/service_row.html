@@ -1,0 +1,31 @@
+<tr>
+    <td><input type="text" name="name" value="{{ st.name }}" form="sf-{{ st.pk }}"></td>
+    <td>
+        <select name="category" form="sf-{{ st.pk }}">
+            <option value="">— Sin categoría —</option>
+            {% for cat in category_list %}
+                <option value="{{ cat.pk }}" {% if st.category_id == cat.pk %}selected{% endif %}>{{ cat.emoji }} {{ cat.name }}</option>
+            {% endfor %}
+        </select>
+    </td>
+    <td>
+        <select name="unit" class="unit-select" form="sf-{{ st.pk }}">
+            <option value="kg" {% if st.unit == 'kg' %}selected{% endif %}>Por kg</option>
+            <option value="piece" {% if st.unit == 'piece' %}selected{% endif %}>Por pieza</option>
+        </select>
+    </td>
+    <td class="range-fields">
+        <div style="display:flex;gap:.3rem;align-items:center">
+            <input type="text" name="min_weight_kg" value="{% if st.min_weight_kg %}{{ st.min_weight_kg }}{% endif %}" inputmode="decimal" placeholder="mín" style="width:52px" form="sf-{{ st.pk }}">
+            <span class="muted">–</span>
+            <input type="text" name="max_weight_kg" value="{% if st.max_weight_kg %}{{ st.max_weight_kg }}{% endif %}" inputmode="decimal" placeholder="máx" style="width:52px" form="sf-{{ st.pk }}">
+        </div>
+    </td>
+    <td><input type="text" name="rate_per_kg" value="{{ st.rate_per_kg }}" inputmode="decimal" style="width:80px" form="sf-{{ st.pk }}"></td>
+    <td><input type="number" name="estimated_days" value="{{ st.estimated_days }}" min="1" style="width:60px" form="sf-{{ st.pk }}"></td>
+    <td><input type="checkbox" name="active" {% if st.active %}checked{% endif %} style="width:auto" form="sf-{{ st.pk }}"></td>
+    <td class="right" style="white-space:nowrap">
+        <button type="submit" class="btn btn-sm btn-primary" form="sf-{{ st.pk }}">Guardar</button>
+        <button type="submit" class="btn btn-sm btn-danger" form="df-{{ st.pk }}" data-confirm="¿Eliminar «{{ st.name }}»?">🗑️</button>
+    </td>
+</tr>

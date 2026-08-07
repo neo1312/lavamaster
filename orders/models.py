@@ -159,9 +159,15 @@ class OrderLine(models.Model):
     service_type = models.ForeignKey(
         ServiceType, on_delete=models.PROTECT, verbose_name='Tipo de servicio'
     )
-    weight_kg = models.DecimalField(
-        'Peso (kg)', max_digits=8, decimal_places=2
+    unit = models.CharField(
+        'Unidad', max_length=10, choices=ServiceType.Unit.choices,
+        null=True, blank=True,
     )
+    weight_kg = models.DecimalField(
+        'Peso (kg)', max_digits=8, decimal_places=2, default=Decimal('0.00'),
+        blank=True,
+    )
+    quantity = models.PositiveSmallIntegerField('Cantidad', default=1)
     rate_per_kg = models.DecimalField(
         'Tarifa por kg', max_digits=10, decimal_places=2
     )
@@ -172,17 +178,26 @@ class OrderLine(models.Model):
         verbose_name_plural = 'Líneas de orden'
 
     def __str__(self):
+        if self.unit == ServiceType.Unit.PIECE:
+            return f'{self.service_type.name} x{self.quantity}'
         return f'{self.service_type.name} - {self.weight_kg} kg'
 
     @property
     def subtotal(self):
+        if self.unit == ServiceType.Unit.PIECE:
+            return (
+                Decimal(self.quantity) * Decimal(self.rate_per_kg)
+            ).quantize(Decimal('0.01'))
         return (
             Decimal(self.weight_kg) * Decimal(self.rate_per_kg)
         ).quantize(Decimal('0.01'))
 
     def save(self, *args, **kwargs):
-        if not self.rate_per_kg:
-            self.rate_per_kg = self.service_type.rate_per_kg
+        if self._state.adding:
+            if not self.rate_per_kg:
+                self.rate_per_kg = self.service_type.rate_per_kg
+            if not self.unit:
+                self.unit = self.service_type.unit
         super().save(*args, **kwargs)
 
 

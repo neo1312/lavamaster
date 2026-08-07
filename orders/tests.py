@@ -6,7 +6,7 @@ from django.test import TestCase
 from accounts.models import User
 from customers.models import Customer
 from orders.models import Order, OrderLine, Payment
-from pricing.models import ServiceType
+from pricing.models import ServiceCategory, ServiceType
 
 
 class OrderFlowTests(TestCase):
@@ -106,3 +106,46 @@ class OrderFlowTests(TestCase):
             order.transition_status(status)
         self.assertEqual(order.status, Order.Status.COMPLETED)
         self.assertIsNotNone(order.completed_at)
+
+
+class PieceLineTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='recep', password='pass', role=User.Role.CASHIER
+        )
+        self.customer = Customer.objects.create(name='Ana Torres')
+        self.camisa = ServiceType.objects.create(
+            name='Camisa', unit='piece', rate_per_kg='25.00'
+        )
+        self.ropa = ServiceType.objects.create(
+            name='Ropa normal', rate_per_kg='25.00'
+        )
+
+    def test_piece_line_subtotal(self):
+        order = Order.objects.create(customer=self.customer)
+        line = OrderLine.objects.create(
+            order=order, service_type=self.camisa, unit='piece',
+            quantity=3, weight_kg=0,
+        )
+        self.assertEqual(line.unit, 'piece')
+        self.assertEqual(line.subtotal, Decimal('75.00'))
+
+    def test_unit_copied_from_service(self):
+        order = Order.objects.create(customer=self.customer)
+        line = OrderLine.objects.create(
+            order=order, service_type=self.camisa, quantity=2,
+        )
+        self.assertEqual(line.unit, 'piece')
+
+    def test_mixed_order_totals(self):
+        order = Order.objects.create(customer=self.customer)
+        OrderLine.objects.create(
+            order=order, service_type=self.camisa, unit='piece',
+            quantity=2, weight_kg=0,
+        )
+        OrderLine.objects.create(
+            order=order, service_type=self.ropa, unit='kg', weight_kg='4.00',
+        )
+        order.refresh_totals()
+        self.assertEqual(order.total_weight_kg, Decimal('4.00'))
+        self.assertEqual(order.subtotal, Decimal('150.00'))

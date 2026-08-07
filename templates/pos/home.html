@@ -35,17 +35,21 @@
 
                 <label>Servicios / prendas</label>
                 <table class="data" id="lines-table">
-                    <thead><tr><th>Tipo</th><th style="width:90px">Peso kg</th><th style="width:40px"></th></tr></thead>
+                    <thead><tr><th>Tipo</th><th style="width:100px">Peso / Cant.</th><th style="width:40px"></th></tr></thead>
                     <tbody>
                         <tr class="line-row">
                             <td>
                                 <select name="service_type" class="service-type">
-                                    {% for st in service_types %}
-                                        <option value="{{ st.id }}" data-rate="{{ st.rate_per_kg }}">{{ st.name }} · ${{ st.rate_per_kg }}/kg</option>
+                                    {% for group in service_groups %}
+                                        <optgroup label="{% if group.emoji %}{{ group.emoji }} {% endif %}{{ group.name }}">
+                                            {% for opt in group.options %}
+                                                <option value="{{ opt.pk }}">{{ opt.label }}</option>
+                                            {% endfor %}
+                                        </optgroup>
                                     {% endfor %}
                                 </select>
                             </td>
-                            <td><input type="text" name="weight" class="weight" inputmode="decimal" placeholder="0.00"></td>
+                            <td><input type="text" name="weight" class="line-value" inputmode="decimal" placeholder="0.00 kg"></td>
                             <td><button type="button" class="btn btn-muted btn-sm remove-line" style="padding:.3rem .6rem">✕</button></td>
                         </tr>
                     </tbody>
@@ -128,19 +132,52 @@
 
 {% block scripts %}
 <script>
-    const rates = {};
-    {% for st in service_types %}rates[{{ st.id }}] = {{ st.rate_per_kg }};{% endfor %}
+    const rates = {{ rates_json|safe }};
+    const units = {{ units_json|safe }};
+    const tiers = {{ tiers_json|safe }};
+
+    function bandFor(pk, weight) {
+        const list = tiers[pk];
+        if (!list) return null;
+        for (const t of list) {
+            const mn = t.min === null ? -Infinity : parseFloat(t.min);
+            const mx = t.max === null ? Infinity : parseFloat(t.max);
+            if (weight >= mn && weight <= mx) return t;
+        }
+        return null;
+    }
+
+    function rateFor(pk, weight) {
+        const band = bandFor(pk, weight);
+        if (band) return parseFloat(band.rate);
+        return parseFloat(rates[pk] || 0);
+    }
+
+    function unitFor(pk) { return units[pk] || 'kg'; }
+
+    function updateRow(row) {
+        const sel = row.querySelector('.service-type');
+        const val = row.querySelector('.line-value');
+        const raw = parseFloat((val.value || '0').replace(',', '.'));
+        const unit = unitFor(sel.value);
+        const isPiece = unit === 'piece';
+        val.placeholder = isPiece ? 'Cantidad' : '0.00 kg';
+        val.dataset.mode = isPiece ? 'piece' : 'kg';
+        if (!raw || raw <= 0) return { w: 0, m: 0 };
+        const rate = rateFor(sel.value, raw);
+        if (isPiece) {
+            const qty = Math.round(raw);
+            return { w: 0, m: qty * rate };
+        }
+        return { w: raw, m: raw * rate };
+    }
 
     function recompute() {
         let totalWeight = 0, totalAmount = 0;
         document.querySelectorAll('#lines-table tbody tr.line-row').forEach(row => {
-            const st = row.querySelector('.service-type');
-            const w = row.querySelector('.weight');
-            const weight = parseFloat((w.value || '0').replace(',', '.'));
-            if (weight > 0 && rates[st.value]) {
-                totalWeight += weight;
-                totalAmount += weight * rates[st.value];
-            }
+            const r = updateRow(row);
+            totalWeight += r.w;
+            totalAmount += r.m;
         });
         document.getElementById('total-weight').textContent = totalWeight.toFixed(2) + ' kg';
         document.getElementById('total-amount').textContent = '$' + totalAmount.toFixed(2);
@@ -148,18 +185,31 @@
         if (!pay.dataset.touched) pay.value = totalAmount.toFixed(2);
     }
 
-    document.getElementById('lines-table').addEventListener('input', recompute);
+    const linesTable = document.getElementById('lines-table');
+    linesTable.addEventListener('input', recompute);
+    linesTable.addEventListener('change', recompute);
     document.getElementById('payment-amount').addEventListener('input', e => { e.target.dataset.touched = '1'; });
 
     function addLine() {
         const tbody = document.querySelector('#lines-table tbody');
         const clone = tbody.querySelector('tr.line-row').cloneNode(true);
-        clone.querySelector('.weight').value = '';
-        clone.querySelector('.remove-line').onclick = () => { clone.remove(); recompute(); };
+        clone.querySelector('.line-value').value = '';
         tbody.appendChild(clone);
+        recompute();
     }
     document.getElementById('add-line').addEventListener('click', addLine);
-    document.querySelectorAll('.remove-line').forEach(b => b.onclick = () => { b.closest('tr').remove(); recompute(); });
+    linesTable.addEventListener('click', e => {
+        if (e.target.classList.contains('remove-line')) {
+            const rows = document.querySelectorAll('#lines-table tbody tr.line-row');
+            if (rows.length > 1) {
+                e.target.closest('tr').remove();
+                recompute();
+            } else {
+                e.target.closest('tr').querySelector('.line-value').value = '';
+                recompute();
+            }
+        }
+    });
 
     document.getElementById('new-customer-toggle').addEventListener('change', e => {
         document.getElementById('new-customer-fields').classList.toggle('hidden', !e.target.checked);
@@ -168,10 +218,13 @@
 
     document.getElementById('order-form').addEventListener('submit', e => {
         const totalKg = parseFloat(document.getElementById('total-weight').textContent);
-        if (totalKg <= 0) {
+        const totalAmt = parseFloat(document.getElementById('total-amount').textContent.replace('$', ''));
+        if (totalKg <= 0 && totalAmt <= 0) {
             e.preventDefault();
-            showToast('Agrega al menos una línea con peso válido.', 'warning');
+            showToast('Agrega al menos una línea con peso o cantidad válidos.', 'warning');
         }
     });
+
+    recompute();
 </script>
 {% endblock %}

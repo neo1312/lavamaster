@@ -48,7 +48,13 @@
     <table>
         {% for line in order.lines.all %}
             <tr>
-                <td>{{ line.service_type.name }}<br>{{ line.weight_kg }} kg × ${{ line.rate_per_kg }}</td>
+                <td>{{ line.service_type.name }}<br>
+                    {% if line.unit == 'piece' %}
+                        {{ line.quantity }} pza × ${{ line.rate_per_kg }}
+                    {% else %}
+                        {{ line.weight_kg }} kg × ${{ line.rate_per_kg }}
+                    {% endif %}
+                </td>
                 <td class="right bold">${{ line.subtotal }}</td>
             </tr>
         {% endfor %}
