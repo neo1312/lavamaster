@@ -56,7 +56,7 @@ a { color: var(--primary-dark); }
     gap: .5rem;
     letter-spacing: .2px;
 }
-.navbar .brand img { height: 34px; width: 34px; }
+.navbar .brand img.brand-logo { height: 32px; width: auto; }
 .navbar nav { display: flex; align-items: center; gap: .35rem; }
 .nav-link {
     color: #e0f2fe;
@@ -420,6 +420,7 @@ table.data tr.cat-head td {
     text-align: center;
 }
 .login-card .logo { font-size: 3.4rem; }
+.login-card .login-logo { max-width: 260px; max-height: 115px; width: auto; height: auto; margin-bottom: .4rem; }
 .login-card h1 { margin: .4rem 0 .1rem; font-size: 1.7rem; font-weight: 900; color: var(--primary-dark); }
 .login-card .tagline { color: var(--muted); font-weight: 700; margin-bottom: 1.4rem; }
 .login-card label { text-align: left; }

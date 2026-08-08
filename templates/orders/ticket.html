@@ -30,8 +30,14 @@
         <button onclick="window.print()">Imprimir</button>
     </div>
 
-    <div class="center bold" style="font-size:15px">LAVAMASTER</div>
-    <div class="center">Lavandería y Planchado</div>
+    <div class="center">
+        {% if logo_data_uri %}
+            <img src="{{ logo_data_uri }}" alt="Lavamaster" style="width:50mm">
+        {% else %}
+            <div class="center bold" style="font-size:15px">LAVAMASTER</div>
+        {% endif %}
+        <div class="center">Lavandería y Planchado</div>
+    </div>
     <div class="line"></div>
 
     <div class="center bold" style="font-size:16px">TICKET {{ order.ticket_number }}</div>
