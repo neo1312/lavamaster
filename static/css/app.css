@@ -421,8 +421,7 @@ table.data tr.cat-head td {
     text-align: center;
 }
 .login-card .logo { font-size: 3.4rem; }
-.login-card .login-logo { display: block; width: 100%; max-width: 280px; height: auto; margin: 0 auto .7rem; }
-.login-card .tagline { color: var(--muted); font-weight: 700; margin-bottom: 1.2rem; }
+.login-card .login-logo { display: block; width: 100%; max-width: 310px; height: auto; margin: 0 auto .7rem; }
 .login-card label { text-align: left; }
 
 /* ---------- Misc ---------- */
