@@ -378,6 +378,7 @@ table.data tr.cat-head td {
 
 /* ---------- Login ---------- */
 .login-wrap {
+    width: 100%;
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -414,15 +415,16 @@ table.data tr.cat-head td {
     z-index: 2;
     background: #fff;
     border-radius: var(--radius-lg);
-    padding: 2.4rem 2.2rem;
-    width: min(400px, 92vw);
+    padding: 1.8rem 1.5rem 2.1rem;
+    width: 100%;
+    max-width: 350px;
     box-shadow: var(--shadow-lg);
     text-align: center;
 }
 .login-card .logo { font-size: 3.4rem; }
-.login-card .login-logo { max-width: 260px; max-height: 115px; width: auto; height: auto; margin-bottom: .4rem; }
-.login-card h1 { margin: .4rem 0 .1rem; font-size: 1.7rem; font-weight: 900; color: var(--primary-dark); }
-.login-card .tagline { color: var(--muted); font-weight: 700; margin-bottom: 1.4rem; }
+.login-card .login-logo { display: block; width: 100%; max-width: 220px; height: auto; margin: 0 auto .5rem; }
+.login-card h1 { margin: .2rem 0 .1rem; font-size: 1.4rem; font-weight: 900; color: var(--primary-dark); }
+.login-card .tagline { color: var(--muted); font-weight: 700; margin-bottom: 1.2rem; }
 .login-card label { text-align: left; }
 
 /* ---------- Misc ---------- */
