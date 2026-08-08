@@ -68,9 +68,13 @@
 
     <table>
         <tr><td>Peso total</td><td class="right">{{ order.total_weight_kg }} kg</td></tr>
-        <tr class="bold" style="font-size:14px"><td>TOTAL</td><td class="right">${{ order.subtotal }}</td></tr>
-        <tr><td>Anticipo / pagado</td><td class="right">${{ order.paid }}</td></tr>
-        <tr class="bold"><td>SALDO</td><td class="right">${{ order.balance_due }}</td></tr>
+        <tr class="bold" style="font-size:14px"><td>SUBTOTAL</td><td class="right">${{ order.subtotal }}</td></tr>
+        {% for p in order.payments.all %}
+            <tr><td>{{ p.get_method_display }} ({{ p.get_payment_type_display }})</td><td class="right">${{ p.amount }}</td></tr>
+        {% empty %}
+            <tr><td>Pagos</td><td class="right">$0.00</td></tr>
+        {% endfor %}
+        <tr class="bold" style="font-size:16px"><td>TOTAL A PAGAR</td><td class="right">${{ order.balance_due }}</td></tr>
     </table>
     <div class="line"></div>
 

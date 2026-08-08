@@ -15,9 +15,7 @@
 <body>
     {% if user.is_authenticated %}
     <header class="navbar no-print">
-        <a class="brand" href="{% url 'home' %}">
-            <img class="brand-logo" src="{% static 'img/logo.png' %}" alt="Lavamaster"> Lavamaster
-        </a>
+        <a class="brand" href="{% url 'home' %}">Lavamaster</a>
         <nav>
             <a href="{% url 'pos_home' %}" class="nav-link {% if active_page == 'pos' %}active{% endif %}">🛒 POS</a>
             <a href="{% url 'pos_orders_list' %}" class="nav-link {% if active_page == 'orders' %}active{% endif %}">📋 Órdenes</a>
